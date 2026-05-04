@@ -2,10 +2,16 @@
 MSM SOLUTION 협가표 단가 조회 시스템
 Streamlit UI
 """
+import os
 import streamlit as st
 import pandas as pd
 from parser import parse_query
 from lookup import lookup, get_full_discount_table
+from seed_data import DB_PATH, seed
+
+# Auto-seed DB if it doesn't exist (needed for Streamlit Cloud deploy)
+if not os.path.exists(DB_PATH):
+    seed()
 
 st.set_page_config(page_title="MSM 협가표 조회", page_icon="🔍", layout="wide")
 
