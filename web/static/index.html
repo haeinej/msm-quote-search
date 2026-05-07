@@ -196,6 +196,7 @@ table.data tr:hover { background: #f8f9ff; }
       Excel 업로드 <input type="file" accept=".xlsx,.xls" style="display:none" onchange="uploadPOExcel(this)">
     </label>
   </div>
+  <div id="poSummary"></div>
   <div id="poSpreadsheet"></div>
   <div id="poStatus" style="font-size:11px;color:#666;margin-top:6px;"></div>
 </div>
@@ -534,10 +535,26 @@ async function loadPOSheet() {
   const q = document.getElementById('poSearch').value;
   if (!year && !q) {
     document.getElementById('poSpreadsheet').innerHTML = '<div class="loading">연도를 선택하세요</div>';
+    document.getElementById('poSummary').innerHTML = '';
     return;
   }
   const params = new URLSearchParams({ year, q });
   const rows = await api('/api/purchase-orders/rows?' + params);
+
+  // Calculate summary
+  let totalAmount = 0, totalQty = 0, shippedCount = 0;
+  for (const r of rows) {
+    if (r.amount) totalAmount += r.amount;
+    if (r.quantity) totalQty += r.quantity;
+    if (r.shipped && r.shipped.includes('O')) shippedCount++;
+  }
+  document.getElementById('poSummary').innerHTML = `
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-num">${rows.length}</div><div class="stat-label">총 건수</div></div>
+      <div class="stat-card"><div class="stat-num">${totalQty.toLocaleString()}</div><div class="stat-label">총 수량</div></div>
+      <div class="stat-card"><div class="stat-num">${totalAmount.toLocaleString()}</div><div class="stat-label">총 금액 (VAT제외)</div></div>
+      <div class="stat-card"><div class="stat-num">${shippedCount} / ${rows.length}</div><div class="stat-label">출고 완료</div></div>
+    </div>`;
 
   const data = [];
   poRowMeta = [];
@@ -546,7 +563,6 @@ async function loadPOSheet() {
                r.order_date, r.delivery_due, r.shipped, r.remark || r.customer_name]);
     poRowMeta.push({ po_id: r.id });
   }
-  // Empty rows for new entries
   for (let i = 0; i < 5; i++) {
     data.push(new Array(PO_COLUMNS.length).fill(''));
     poRowMeta.push({ po_id: null });
@@ -612,7 +628,33 @@ async function onPOCellChange(instance, cell, x, y, value) {
     body: JSON.stringify({ po_id: meta.po_id, field, value: String(value) }),
   });
   document.getElementById('poStatus').textContent = `저장됨: ${PO_COLUMNS[x].title} = ${value}`;
+
+  // Refresh summary if amount or qty changed
+  if (field === 'amount' || field === 'quantity' || field === 'shipped') refreshPOSummary();
 }
+
+function refreshPOSummary() {
+  if (!poSheet) return;
+  let totalAmount = 0, totalQty = 0, shippedCount = 0, rowCount = 0;
+  const allData = poSheet.getData();
+  for (let i = 0; i < allData.length; i++) {
+    if (!poRowMeta[i] || !poRowMeta[i].po_id) continue;
+    rowCount++;
+    const amt = parseFloat(allData[i][5]) || 0;
+    const qty = parseInt(allData[i][4]) || 0;
+    const shipped = allData[i][8] || '';
+    totalAmount += amt;
+    totalQty += qty;
+    if (shipped.includes('O')) shippedCount++;
+  }
+  document.getElementById('poSummary').innerHTML = `
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-num">${rowCount}</div><div class="stat-label">총 건수</div></div>
+      <div class="stat-card"><div class="stat-num">${totalQty.toLocaleString()}</div><div class="stat-label">총 수량</div></div>
+      <div class="stat-card"><div class="stat-num">${totalAmount.toLocaleString()}</div><div class="stat-label">총 금액 (VAT제외)</div></div>
+      <div class="stat-card"><div class="stat-num">${shippedCount} / ${rowCount}</div><div class="stat-label">출고 완료</div></div>
+    </div>`;
+
 
 function addPORow() {
   if (!poSheet) return;
