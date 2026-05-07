@@ -260,30 +260,51 @@ async function searchPrice() {
   const p = data.parsed;
 
   let html = '';
-  for (const [key, label] of [['product_type','제품군'],['pressure_class','압력'],['size_a','사이즈'],['discount_rate','할인율'],['connection_type','연결'],['material_raw','재질']]) {
-    if (p[key]) html += `<span class="tag tag-ok">${label}: ${p[key]}</span>`;
-    else if (['product_type','pressure_class','size_a'].includes(key))
+  for (const [key, label] of [['product_type','제품군'],['pressure_raw','압력'],['size_a','사이즈'],['discount_rate','할인율'],['connection_type','연결'],['operator_type','조작'],['material_raw','재질']]) {
+    const val = p[key];
+    if (val) html += `<span class="tag tag-ok">${label}: ${val}</span>`;
+    else if (['product_type','pressure_raw','size_a'].includes(key))
       html += `<span class="tag tag-miss">${label}: 미입력</span>`;
   }
-  if (p.warnings) for (const w of p.warnings) html += `<span class="tag tag-warn">${w}</span>`;
+  if (p.trim_extras && p.trim_extras.length)
+    html += `<span class="tag tag-warn">TRIM: ${p.trim_extras.join('+')}</span>`;
+  if (p.warnings) for (const w of p.warnings) {
+    if (w.startsWith('⚠')) html += `<span class="tag tag-warn" style="font-weight:600">${w}</span>`;
+    else html += `<span class="tag tag-warn">${w}</span>`;
+  }
   document.getElementById('parsedTags').innerHTML = html;
 
   const res = document.getElementById('priceResult');
+
+  // RFQ alert — show prominently before any results
+  let rfqHtml = '';
+  if (p.rfq_required) {
+    rfqHtml = `<div class="price-result" style="background:#fff3e0;border:2px solid #e65100;margin-bottom:8px;">
+      <div style="font-size:14px;font-weight:700;color:#e65100;margin-bottom:6px;">제조사 견적 요청(RFQ) 대상</div>
+      <div style="font-size:12px;color:#333;line-height:1.8;">기본 사양을 벗어나는 항목:<ul style="margin:4px 0 0 18px;">
+      ${(p.rfq_reasons||[]).map(r => '<li>'+r+'</li>').join('')}
+      </ul></div>
+      <div style="margin-top:8px;font-size:11px;color:#666;border-top:1px solid #ffcc80;padding-top:6px;">
+        <b>재고품 기본 사양:</b> GATE/GLOBE/CHECK/Y-STR · 10K/20K(150#/300#) · FLGD RF · SCPH2/WCB · 13CR(Y-STR:304SS) · H/W(대구경:GEAR)
+      </div>
+    </div>`;
+  }
+
   if (data.status === 'exact') {
     const r = data.results[0];
-    res.innerHTML = `<div class="price-result price-found">
+    res.innerHTML = rfqHtml + `<div class="price-result price-found">
       <div class="big-price">${fmt(r.unit_price)} KRW</div>
       <div style="font-size:11px;color:#666;margin-top:3px;">${r.product_type} · ${r.pressure_class} · ${r.size_a}(${r.size_inch}) · ${r.discount_rate} · ${r.construction_type}</div>
+      ${p.rfq_required ? '<div style="font-size:11px;color:#e65100;margin-top:4px;">* 위 단가는 재고품(기본 사양) 기준이며, 요청 사양은 제조사 별도 견적이 필요합니다.</div>' : ''}
     </div>`;
   } else if (data.status === 'multiple') {
     let tbl = `<div class="price-result price-multi"><b>${data.count}건 복수 매칭</b> — 조건을 추가하세요
       <table class="data" style="margin-top:6px"><tr><th>제품군</th><th>압력</th><th>사이즈</th><th>할인율</th><th>단가</th></tr>`;
     for (const r of data.results.slice(0, 40))
       tbl += `<tr><td>${r.product_type}</td><td>${r.pressure_class}</td><td>${r.size_a}</td><td>${r.discount_rate}</td><td class="num">${fmt(r.unit_price)}</td></tr>`;
-    res.innerHTML = tbl + '</table></div>';
+    res.innerHTML = rfqHtml + tbl + '</table></div>';
   } else {
-    res.innerHTML = `<div class="price-result price-none"><b>협가표 내 매칭 없음</b> — 제조사 견적 문의(RFQ) 필요
-      <br><button class="rfq-btn" onclick="alert('RFQ 생성 기능 곧 추가')">RFQ 생성</button></div>`;
+    res.innerHTML = rfqHtml + `<div class="price-result price-none"><b>협가표 내 매칭 없음</b> — 제조사 견적 문의(RFQ) 필요</div>`;
   }
 }
 

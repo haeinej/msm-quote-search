@@ -4,3 +4,6 @@ fastapi
 uvicorn
 openpyxl
 xlrd
+supabase
+python-dotenv
+psycopg2-binary
