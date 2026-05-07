@@ -34,7 +34,7 @@ _valid_tokens: set[str] = set()
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
-        if path == "/api/login" or path == "/login" or path.startswith("/static"):
+        if path in ("/api/login", "/login", "/api/health") or path.startswith("/static"):
             return await call_next(request)
         token = request.cookies.get("msm_token")
         if not token or token not in _valid_tokens:
@@ -48,6 +48,21 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
 app = FastAPI(title="MSM Valve Management", version="2.0.0")
 app.add_middleware(AuthMiddleware)
+
+
+@app.get("/api/health")
+def health():
+    """Health check — no auth required, useful for debugging."""
+    info = {"status": "ok", "supabase": is_supabase()}
+    if is_supabase():
+        try:
+            r = sb().table("price_catalog").select("id", count="exact").limit(1).execute()
+            info["db_connected"] = True
+            info["price_catalog_count"] = r.count
+        except Exception as e:
+            info["db_connected"] = False
+            info["db_error"] = str(e)[:200]
+    return info
 
 
 @app.post("/api/login")
