@@ -928,6 +928,9 @@ async def upload_po_excel(file: UploadFile = File(...), year: int = Query(0)):
         amount = cell_val(r, "amount")
         if not po and not item and not amount:
             continue
+        # Skip total/summary rows (have amount but no PO# and no item)
+        if not po and not item:
+            continue
 
         delivery_due_raw = cell_val(r, "delivery_due")
         delivery_due = to_date_str(delivery_due_raw)
