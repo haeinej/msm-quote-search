@@ -222,6 +222,15 @@ def update_order_cell(update: OrderRowUpdate):
     field = update.field
     value = update.value if update.value != "" else None
 
+    # Sanitize numeric fields — strip commas and convert to int
+    numeric_fields = {"unit_price", "quantity", "amount", "stock_amount",
+                      "delivery_amount", "sales_amount", "purchase_amount"}
+    if field in numeric_fields and value is not None:
+        try:
+            value = int(float(str(value).replace(",", "")))
+        except (ValueError, TypeError):
+            pass
+
     if field in item_fields and update.item_id:
         conn.execute(
             f"UPDATE order_items SET {field} = ? WHERE id = ?",
@@ -253,10 +262,11 @@ def add_order_row(row: NewOrderRow):
     """Add a new order + first item row."""
     conn = get_msm_db()
 
-    # Auto-assign order_seq
+    # Auto-assign order_seq — yearly sequential (based on year prefix of year_month)
     if not row.order_seq:
+        year_prefix = row.year_month[:4]
         r = conn.execute(
-            "SELECT MAX(order_seq) FROM orders WHERE year_month = ?", (row.year_month,)
+            "SELECT MAX(order_seq) FROM orders WHERE year_month LIKE ?", (year_prefix + "%",)
         ).fetchone()
         row.order_seq = (r[0] or 0) + 1
 
@@ -721,6 +731,12 @@ def update_po_cell(update: POCellUpdate):
         return {"ok": False, "error": f"Unknown field: {update.field}"}
     conn = get_msm_db()
     value = update.value if update.value != "" else None
+    # Sanitize numeric fields
+    if update.field in {"quantity", "amount"} and value is not None:
+        try:
+            value = int(float(str(value).replace(",", "")))
+        except (ValueError, TypeError):
+            pass
     conn.execute(
         f"UPDATE purchase_orders SET {update.field} = ? WHERE id = ?",
         (value, update.po_id),

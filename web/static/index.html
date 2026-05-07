@@ -236,6 +236,7 @@ function showTab(name) {
 function fmt(n) { return n != null && n !== '' ? Number(n).toLocaleString() : ''; }
 function fmtDate(d) { return d || ''; }
 function escHtml(s) { if (!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function toNum(v) { if (v == null || v === '') return ''; if (typeof v === 'number') return v; const s = String(v).replace(/,/g, ''); const n = Number(s); return isNaN(n) ? v : n; }
 async function api(url, opts) { const res = await fetch(url, opts); return res.json(); }
 
 // ============================================================
@@ -349,10 +350,10 @@ async function loadOrderSheet() {
   for (const r of rows) {
     data.push([
       r.order_id, r.item_id, r.order_seq, r.customer_name, r.memo,
-      r.item_desc, r.unit_price, r.quantity, r.order_date, r.amount,
-      r.stock_amount, r.delivery_due, r.delivery_date, r.delivery_amount,
-      r.sales_date, r.sales_amount, r.remark, r.collection_note,
-      r.supplier_name, r.purchase_date, r.purchase_amount, r.purchase_due,
+      r.item_desc, toNum(r.unit_price), toNum(r.quantity), r.order_date, toNum(r.amount),
+      toNum(r.stock_amount), r.delivery_due, r.delivery_date, toNum(r.delivery_amount),
+      r.sales_date, toNum(r.sales_amount), r.remark, r.collection_note,
+      r.supplier_name, r.purchase_date, toNum(r.purchase_amount), r.purchase_due,
     ]);
     orderRowMeta.push({ order_id: r.order_id, item_id: r.item_id });
   }
@@ -381,6 +382,8 @@ async function loadOrderSheet() {
     allowDeleteColumn: false,
     columnSorting: false,
     onchange: onOrderCellChange,
+    onundo: onOrderUndo,
+    onredo: onOrderUndo,
     contextMenu: function(obj, x, y, e) {
       return [
         { title: '행 추가 (아래)', onclick: function() { addOrderRow(); } },
@@ -425,6 +428,22 @@ async function onOrderCellChange(instance, cell, x, y, value) {
     return;
   }
 
+  // Auto-calculate: unit_price(6) * quantity(7) = amount(9)
+  if (field === 'unit_price' || field === 'quantity') {
+    const price = parseFloat(orderSheet.getValueFromCoords(6, y)) || 0;
+    const qty = parseFloat(orderSheet.getValueFromCoords(7, y)) || 0;
+    const amt = price * qty;
+    if (amt > 0) {
+      orderSheet.setValueFromCoords(9, y, amt, true); // true = don't trigger onchange
+      // Save amount to server
+      await api('/api/orders/update-cell', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ order_id: meta.order_id, item_id: meta.item_id, field: 'amount', value: String(amt) }),
+      });
+    }
+  }
+
   // Update existing cell
   await api('/api/orders/update-cell', {
     method: 'POST',
@@ -432,6 +451,42 @@ async function onOrderCellChange(instance, cell, x, y, value) {
     body: JSON.stringify({ order_id: meta.order_id, item_id: meta.item_id, field, value: String(value) }),
   });
   document.getElementById('orderStatus').textContent = `저장됨: ${ORDER_COLUMNS[x].title} = ${value}`;
+}
+
+// Undo/Redo handler — sync reverted values back to server
+async function onOrderUndo(instance, historyRecord) {
+  const records = historyRecord && historyRecord.records ? historyRecord.records : historyRecord;
+  if (!records || !records.length) return;
+  for (const record of records) {
+    const x = record.x !== undefined ? record.x : record.col;
+    const y = record.y !== undefined ? record.y : record.row;
+    if (x === undefined || y === undefined) continue;
+    const meta = orderRowMeta[y];
+    if (!meta || !meta.order_id) continue;
+    const field = ORDER_FIELDS[x];
+    if (!field || field === 'order_id' || field === 'item_id') continue;
+    const value = orderSheet.getValueFromCoords(x, y);
+    await api('/api/orders/update-cell', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ order_id: meta.order_id, item_id: meta.item_id, field, value: value != null ? String(value) : '' }),
+    });
+    // Recompute amount if unit_price or quantity was undone
+    if (field === 'unit_price' || field === 'quantity') {
+      const price = parseFloat(orderSheet.getValueFromCoords(6, y)) || 0;
+      const qty = parseFloat(orderSheet.getValueFromCoords(7, y)) || 0;
+      const amt = price * qty;
+      if (amt > 0) {
+        orderSheet.setValueFromCoords(9, y, amt, true);
+        await api('/api/orders/update-cell', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ order_id: meta.order_id, item_id: meta.item_id, field: 'amount', value: String(amt) }),
+        });
+      }
+    }
+  }
+  document.getElementById('orderStatus').textContent = '되돌리기 저장됨';
 }
 
 function addOrderRow() {
@@ -559,7 +614,8 @@ async function loadPOSheet() {
   const data = [];
   poRowMeta = [];
   for (const r of rows) {
-    data.push([r.id, r.po_number, r.supplier_name, r.item_desc, r.quantity, r.amount,
+    data.push([r.id, r.po_number, r.supplier_name, r.item_desc,
+               toNum(r.quantity), toNum(r.amount),
                r.order_date, r.delivery_due, r.shipped, r.remark || r.customer_name]);
     poRowMeta.push({ po_id: r.id });
   }
@@ -584,6 +640,8 @@ async function loadPOSheet() {
     allowDeleteColumn: false,
     columnSorting: false,
     onchange: onPOCellChange,
+    onundo: onPOUndo,
+    onredo: onPOUndo,
     contextMenu: function(obj, x, y, e) {
       return [
         { title: '행 추가 (아래)', onclick: function() { addPORow(); } },
@@ -631,6 +689,29 @@ async function onPOCellChange(instance, cell, x, y, value) {
 
   // Refresh summary if amount or qty changed
   if (field === 'amount' || field === 'quantity' || field === 'shipped') refreshPOSummary();
+}
+
+// PO Undo/Redo handler
+async function onPOUndo(instance, historyRecord) {
+  const records = historyRecord && historyRecord.records ? historyRecord.records : historyRecord;
+  if (!records || !records.length) return;
+  for (const record of records) {
+    const x = record.x !== undefined ? record.x : record.col;
+    const y = record.y !== undefined ? record.y : record.row;
+    if (x === undefined || y === undefined) continue;
+    const meta = poRowMeta[y];
+    if (!meta || !meta.po_id) continue;
+    const field = PO_FIELDS[x];
+    if (!field || field === 'id') continue;
+    const value = poSheet.getValueFromCoords(x, y);
+    await api('/api/purchase-orders/update-cell', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ po_id: meta.po_id, field, value: value != null ? String(value) : '' }),
+    });
+  }
+  document.getElementById('poStatus').textContent = '되돌리기 저장됨';
+  refreshPOSummary();
 }
 
 function refreshPOSummary() {
