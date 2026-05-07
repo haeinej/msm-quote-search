@@ -6,12 +6,14 @@ import sqlite3
 import os
 import sys
 import io
+import hashlib
+import secrets
 import tempfile
 from datetime import date, datetime
 from typing import Optional, List
 
-from fastapi import FastAPI, Query, Request, UploadFile, File, Body
-from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
+from fastapi import FastAPI, Query, Request, UploadFile, File, Body, Cookie, HTTPException
+from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
 # Add parent to path for parser/lookup imports
@@ -24,7 +26,67 @@ MSM_DB = os.path.join(DATA_DIR, "msm.sqlite")
 PRICE_DB = os.path.join(DATA_DIR, "한국밸브_협가표.db")
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 
+# ============================================================
+# Auth — simple internal password
+# ============================================================
+# Set via environment variable, or defaults to this:
+INTERNAL_PASSWORD = os.environ.get("MSM_PASSWORD", "msm2026!")
+# Valid session tokens (in-memory, reset on server restart)
+_valid_tokens: set[str] = set()
+
+
+def verify_session(msm_token: Optional[str] = Cookie(None)):
+    if not msm_token or msm_token not in _valid_tokens:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+
+from starlette.middleware.base import BaseHTTPMiddleware
+
+
+class AuthMiddleware(BaseHTTPMiddleware):
+    """Block all /api/* routes (except /api/login) and / without a valid session cookie."""
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+        # Allow login endpoint and static assets
+        if path == "/api/login" or path == "/login" or path.startswith("/static"):
+            return await call_next(request)
+        # Check auth for everything else
+        token = request.cookies.get("msm_token")
+        if not token or token not in _valid_tokens:
+            # For API calls return 401 JSON
+            if path.startswith("/api/"):
+                return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+            # For page requests, serve the login page
+            login_path = os.path.join(STATIC_DIR, "login.html")
+            with open(login_path, encoding="utf-8") as f:
+                return HTMLResponse(f.read())
+        return await call_next(request)
+
+
 app = FastAPI(title="MSM Valve Management", version="1.0.0")
+app.add_middleware(AuthMiddleware)
+
+
+@app.post("/api/login")
+async def login(request: Request):
+    body = await request.json()
+    pw = body.get("password", "")
+    if pw == INTERNAL_PASSWORD:
+        token = secrets.token_hex(32)
+        _valid_tokens.add(token)
+        response = JSONResponse({"ok": True})
+        response.set_cookie("msm_token", token, httponly=True, samesite="lax", max_age=86400 * 30)
+        return response
+    return JSONResponse({"ok": False, "error": "비밀번호가 틀렸습니다"}, status_code=403)
+
+
+@app.post("/api/logout")
+async def logout(msm_token: Optional[str] = Cookie(None)):
+    if msm_token:
+        _valid_tokens.discard(msm_token)
+    response = JSONResponse({"ok": True})
+    response.delete_cookie("msm_token")
+    return response
 
 
 def get_msm_db():

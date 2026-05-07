@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MSM 밸브 관리 시스템 — 로그인</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, 'Malgun Gothic', sans-serif;
+  background: #1a237e;
+  display: flex; align-items: center; justify-content: center;
+  min-height: 100vh;
+}
+.login-card {
+  background: white; border-radius: 12px; padding: 40px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  width: 360px; text-align: center;
+}
+.login-card h1 { font-size: 20px; color: #1a237e; margin-bottom: 6px; }
+.login-card .subtitle { font-size: 12px; color: #888; margin-bottom: 24px; display: block; }
+.login-card input {
+  width: 100%; padding: 12px 16px; border: 2px solid #ddd; border-radius: 8px;
+  font-size: 15px; text-align: center; letter-spacing: 2px;
+  outline: none; transition: border-color 0.2s;
+}
+.login-card input:focus { border-color: #1a237e; }
+.login-card input::placeholder { letter-spacing: 0; }
+.login-card button {
+  width: 100%; padding: 12px; margin-top: 12px;
+  background: #1a237e; color: white; border: none; border-radius: 8px;
+  font-size: 14px; font-weight: 600; cursor: pointer;
+  transition: background 0.2s;
+}
+.login-card button:hover { background: #283593; }
+.error { color: #c62828; font-size: 12px; margin-top: 8px; display: none; }
+.lock-icon { font-size: 36px; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+<div class="login-card">
+  <div class="lock-icon">&#128274;</div>
+  <h1>MSM 밸브 관리 시스템</h1>
+  <span class="subtitle">한국밸브 서울영업소 — 내부 전용</span>
+  <form onsubmit="doLogin(event)">
+    <input type="password" id="pw" placeholder="비밀번호 입력" autofocus>
+    <button type="submit">로그인</button>
+  </form>
+  <div class="error" id="err">비밀번호가 틀렸습니다</div>
+</div>
+<script>
+async function doLogin(e) {
+  e.preventDefault();
+  const pw = document.getElementById('pw').value;
+  const res = await fetch('/api/login', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ password: pw }),
+  });
+  const data = await res.json();
+  if (data.ok) {
+    window.location.href = '/';
+  } else {
+    document.getElementById('err').style.display = 'block';
+    document.getElementById('pw').value = '';
+    document.getElementById('pw').focus();
+  }
+}
+</script>
+</body>
+</html>
