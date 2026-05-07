@@ -19,7 +19,7 @@ load_dotenv()
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from parser import parse_query
-from db.connection import is_supabase, get_supabase, get_sqlite
+from db.connection import is_supabase, get_supabase, get_sqlite, get_init_error
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
@@ -53,7 +53,15 @@ app.add_middleware(AuthMiddleware)
 @app.get("/api/health")
 def health():
     """Health check — no auth required, useful for debugging."""
-    info = {"status": "ok", "supabase": is_supabase()}
+    import sys
+    info = {
+        "status": "ok",
+        "python": sys.version[:10],
+        "supabase_configured": is_supabase(),
+        "supabase_url_set": bool(os.environ.get("SUPABASE_URL")),
+        "supabase_key_set": bool(os.environ.get("SUPABASE_SERVICE_KEY")),
+        "init_error": get_init_error(),
+    }
     if is_supabase():
         try:
             r = sb().table("price_catalog").select("id", count="exact").limit(1).execute()
@@ -61,7 +69,7 @@ def health():
             info["price_catalog_count"] = r.count
         except Exception as e:
             info["db_connected"] = False
-            info["db_error"] = str(e)[:200]
+            info["db_error"] = str(e)[:500]
     return info
 
 
