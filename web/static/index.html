@@ -4,97 +4,110 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MSM 밸브 관리 시스템</title>
+<!-- jspreadsheet CE for Excel-like editing -->
+<link rel="stylesheet" href="https://bossanova.uk/jspreadsheet/v4/jexcel.css" />
+<link rel="stylesheet" href="https://jsuites.net/v4/jsuites.css" />
+<script src="https://bossanova.uk/jspreadsheet/v4/jexcel.js"></script>
+<script src="https://jsuites.net/v4/jsuites.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, 'Malgun Gothic', sans-serif; background: #f5f5f5; color: #333; }
+body { font-family: -apple-system, 'Malgun Gothic', sans-serif; background: #f5f5f5; color: #333; font-size: 13px; }
 
-/* Header */
-.header { background: #1a237e; color: white; padding: 12px 24px; display: flex; align-items: center; gap: 16px; }
-.header h1 { font-size: 18px; font-weight: 600; }
-.header .subtitle { font-size: 12px; opacity: 0.7; }
+.header { background: #1a237e; color: white; padding: 10px 24px; display: flex; align-items: center; gap: 16px; }
+.header h1 { font-size: 17px; font-weight: 600; }
+.header .subtitle { font-size: 11px; opacity: 0.7; }
 
-/* Tabs */
 .tabs { display: flex; background: #283593; padding: 0 16px; }
-.tab { padding: 10px 20px; color: rgba(255,255,255,0.7); cursor: pointer; border: none; background: none;
-       font-size: 13px; font-weight: 500; border-bottom: 2px solid transparent; transition: all 0.2s; }
+.tab { padding: 9px 18px; color: rgba(255,255,255,0.7); cursor: pointer; border: none; background: none;
+       font-size: 12px; font-weight: 500; border-bottom: 2px solid transparent; transition: all 0.2s; }
 .tab:hover { color: white; background: rgba(255,255,255,0.05); }
 .tab.active { color: white; border-bottom-color: #ffd740; }
 
-/* Content */
-.content { max-width: 1400px; margin: 0 auto; padding: 16px; }
+.content { max-width: 1600px; margin: 0 auto; padding: 12px; }
 .panel { display: none; }
 .panel.active { display: block; }
 
-/* Cards */
-.card { background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 20px; margin-bottom: 16px; }
-.card h2 { font-size: 15px; font-weight: 600; margin-bottom: 12px; color: #1a237e; }
+.card { background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 16px; margin-bottom: 12px; }
+.card h2 { font-size: 14px; font-weight: 600; margin-bottom: 10px; color: #1a237e; }
 
-/* Search bar */
-.search-bar { display: flex; gap: 8px; margin-bottom: 16px; }
-.search-bar input, .search-bar select {
-  padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;
-}
-.search-bar input { flex: 1; }
-.search-bar select { min-width: 120px; }
-.search-bar button {
-  padding: 8px 16px; background: #1a237e; color: white; border: none; border-radius: 6px;
-  cursor: pointer; font-size: 13px; font-weight: 500;
-}
-.search-bar button:hover { background: #283593; }
+.toolbar { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; align-items: center; }
+.toolbar input, .toolbar select {
+  padding: 6px 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 12px; }
+.toolbar input { flex: 1; min-width: 150px; }
+.toolbar select { min-width: 110px; }
+.btn { padding: 6px 14px; border: none; border-radius: 5px; cursor: pointer; font-size: 12px; font-weight: 500; }
+.btn-primary { background: #1a237e; color: white; }
+.btn-primary:hover { background: #283593; }
+.btn-success { background: #2e7d32; color: white; }
+.btn-success:hover { background: #388e3c; }
+.btn-danger { background: #c62828; color: white; }
+.btn-danger:hover { background: #d32f2f; }
+.btn-outline { background: white; border: 1px solid #ddd; color: #333; }
+.btn-outline:hover { background: #f5f5f5; }
+.btn-sm { padding: 4px 10px; font-size: 11px; }
 
-/* Price search specific */
-.price-input { width: 100%; padding: 12px 16px; border: 2px solid #1a237e; border-radius: 8px;
-  font-size: 15px; font-family: monospace; }
+/* Price search */
+.price-input { width: 100%; padding: 10px 14px; border: 2px solid #1a237e; border-radius: 8px;
+  font-size: 14px; font-family: monospace; }
 .price-input:focus { outline: none; border-color: #ffd740; }
-.parsed-tags { margin: 8px 0; display: flex; gap: 6px; flex-wrap: wrap; }
-.tag { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 500; }
+.parsed-tags { margin: 6px 0; display: flex; gap: 5px; flex-wrap: wrap; }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; }
 .tag-ok { background: #e8f5e9; color: #2e7d32; }
 .tag-miss { background: #fce4ec; color: #c62828; }
 .tag-warn { background: #fff3e0; color: #e65100; }
-.price-result { padding: 16px; border-radius: 8px; margin-top: 12px; }
+.price-result { padding: 14px; border-radius: 8px; margin-top: 10px; }
 .price-found { background: #e8f5e9; border: 1px solid #a5d6a7; }
 .price-none { background: #fce4ec; border: 1px solid #ef9a9a; }
 .price-multi { background: #fff3e0; border: 1px solid #ffcc80; }
-.big-price { font-size: 28px; font-weight: 700; color: #1a237e; }
-.rfq-btn { margin-top: 8px; padding: 8px 16px; background: #c62828; color: white; border: none;
-  border-radius: 6px; cursor: pointer; font-weight: 500; }
+.big-price { font-size: 26px; font-weight: 700; color: #1a237e; }
+.rfq-btn { margin-top: 6px; padding: 6px 14px; background: #c62828; color: white; border: none;
+  border-radius: 5px; cursor: pointer; font-weight: 500; }
+.discount-row { display: flex; gap: 4px; margin: 6px 0; flex-wrap: wrap; }
+.discount-btn { padding: 3px 8px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;
+  font-size: 11px; background: white; }
+.discount-btn.active { background: #1a237e; color: white; border-color: #1a237e; }
 
-/* Tables */
-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-th { background: #f5f5f5; font-weight: 600; text-align: left; padding: 8px 10px; border-bottom: 2px solid #ddd;
+/* Rules box */
+.rules-box { background: #f5f5f5; border-radius: 6px; padding: 10px 14px; font-size: 11px; line-height: 1.6;
+  margin-top: 10px; color: #555; border-left: 3px solid #1a237e; }
+.rules-box b { color: #333; }
+
+/* Generic tables */
+table.data { width: 100%; border-collapse: collapse; font-size: 11px; }
+table.data th { background: #f5f5f5; font-weight: 600; text-align: left; padding: 6px 8px; border-bottom: 2px solid #ddd;
   position: sticky; top: 0; white-space: nowrap; }
-td { padding: 6px 10px; border-bottom: 1px solid #eee; }
-tr:hover { background: #f8f9ff; }
+table.data td { padding: 5px 8px; border-bottom: 1px solid #eee; }
+table.data tr:hover { background: #f8f9ff; }
 .num { text-align: right; font-family: monospace; }
 .status-o { color: #2e7d32; font-weight: 600; }
 .nowrap { white-space: nowrap; }
-.item-desc { max-width: 300px; white-space: pre-line; font-size: 11px; }
+.item-desc { max-width: 280px; white-space: pre-line; font-size: 10px; }
 
-/* Pagination */
-.pagination { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; font-size: 12px; color: #666; }
-.pagination button { padding: 4px 12px; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer; }
+.pagination { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; font-size: 11px; color: #666; }
+.pagination button { padding: 3px 10px; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer; }
 .pagination button:disabled { opacity: 0.3; cursor: default; }
 
-/* Stats */
-.stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px; }
-.stat-card { background: white; border-radius: 8px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); text-align: center; }
-.stat-num { font-size: 24px; font-weight: 700; color: #1a237e; }
-.stat-label { font-size: 12px; color: #666; margin-top: 4px; }
+.stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.stat-card { background: white; border-radius: 8px; padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); text-align: center; }
+.stat-num { font-size: 20px; font-weight: 700; color: #1a237e; }
+.stat-label { font-size: 11px; color: #666; margin-top: 3px; }
 
-/* Discount selector */
-.discount-row { display: flex; gap: 6px; margin: 8px 0; flex-wrap: wrap; }
-.discount-btn { padding: 4px 10px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;
-  font-size: 12px; background: white; }
-.discount-btn.active { background: #1a237e; color: white; border-color: #1a237e; }
+.loading { text-align: center; padding: 20px; color: #999; }
 
-/* Loading */
-.loading { text-align: center; padding: 24px; color: #999; }
+/* jspreadsheet overrides */
+.jexcel_container { font-size: 11px !important; }
+.jexcel td { font-size: 11px !important; }
+.jexcel thead td { font-size: 10px !important; font-weight: 600 !important; }
 
-/* Responsive */
+/* Upload area */
+.upload-area { border: 2px dashed #ccc; border-radius: 8px; padding: 16px; text-align: center;
+  cursor: pointer; color: #999; transition: all 0.2s; margin-bottom: 10px; }
+.upload-area:hover { border-color: #1a237e; color: #1a237e; }
+.upload-area.dragover { border-color: #ffd740; background: #fffde7; }
+
 @media (max-width: 768px) {
   .tabs { overflow-x: auto; }
-  .search-bar { flex-wrap: wrap; }
-  .search-bar input, .search-bar select { min-width: 100%; }
+  .toolbar { flex-direction: column; }
 }
 </style>
 </head>
@@ -112,118 +125,109 @@ tr:hover { background: #f8f9ff; }
   <button class="tab" onclick="showTab('purchases')">매입 내역</button>
 </div>
 
-<!-- ============================================================ -->
-<!-- TAB 1: Price Search -->
-<!-- ============================================================ -->
 <div class="content">
+
+<!-- TAB 1: Price Search -->
 <div id="tab-search" class="panel active">
   <div class="card">
     <h2>협가표 단가 조회 — 복붙 검색</h2>
-    <p style="font-size:12px;color:#666;margin-bottom:8px;">견적서에서 제품명을 복사하여 붙여넣기 하세요. 예: GATE WCB/13CR+HF 300# BW GEAR 12"</p>
+    <p style="font-size:11px;color:#666;margin-bottom:6px;">견적서에서 제품명을 복사 붙여넣기. 예: GATE WCB/13CR+HF 300# BW GEAR 12"</p>
     <input type="text" class="price-input" id="priceQuery"
-      placeholder="GATE WCB/13CR+HF 300# BW GEAR 12&quot;"
+      placeholder='GATE WCB/13CR+HF 300# BW GEAR 12"'
       onkeydown="if(event.key==='Enter')searchPrice()">
     <div class="discount-row" id="discountRow">
       <button class="discount-btn" onclick="setDiscount('')">전체</button>
       <button class="discount-btn" onclick="setDiscount('0%')">정가</button>
-      <button class="discount-btn active" onclick="setDiscount('-40%')">-40%</button>
-      <button class="discount-btn" onclick="setDiscount('-41%')">-41%</button>
-      <button class="discount-btn" onclick="setDiscount('-42%')">-42%</button>
-      <button class="discount-btn" onclick="setDiscount('-43%')">-43%</button>
-      <button class="discount-btn" onclick="setDiscount('-44%')">-44%</button>
-      <button class="discount-btn" onclick="setDiscount('-45%')">-45%</button>
-      <button class="discount-btn" onclick="setDiscount('-46%')">-46%</button>
-      <button class="discount-btn" onclick="setDiscount('-47%')">-47%</button>
-      <button class="discount-btn" onclick="setDiscount('-48%')">-48%</button>
-      <button class="discount-btn" onclick="setDiscount('-49%')">-49%</button>
-      <button class="discount-btn" onclick="setDiscount('-50%')">-50%</button>
-      <button class="discount-btn" onclick="setDiscount('-51%')">-51%</button>
-      <button class="discount-btn" onclick="setDiscount('-52%')">-52%</button>
-      <button class="discount-btn" onclick="setDiscount('-53%')">-53%</button>
-      <button class="discount-btn" onclick="setDiscount('-54%')">-54%</button>
-      <button class="discount-btn" onclick="setDiscount('-55%')">-55%</button>
-      <button class="discount-btn" onclick="setDiscount('-56%')">-56%</button>
+      <button class="discount-btn active" onclick="setDiscount('-40%')">-40</button>
+      <button class="discount-btn" onclick="setDiscount('-41%')">-41</button>
+      <button class="discount-btn" onclick="setDiscount('-42%')">-42</button>
+      <button class="discount-btn" onclick="setDiscount('-43%')">-43</button>
+      <button class="discount-btn" onclick="setDiscount('-44%')">-44</button>
+      <button class="discount-btn" onclick="setDiscount('-45%')">-45</button>
+      <button class="discount-btn" onclick="setDiscount('-46%')">-46</button>
+      <button class="discount-btn" onclick="setDiscount('-47%')">-47</button>
+      <button class="discount-btn" onclick="setDiscount('-48%')">-48</button>
+      <button class="discount-btn" onclick="setDiscount('-49%')">-49</button>
+      <button class="discount-btn" onclick="setDiscount('-50%')">-50</button>
+      <button class="discount-btn" onclick="setDiscount('-51%')">-51</button>
+      <button class="discount-btn" onclick="setDiscount('-52%')">-52</button>
+      <button class="discount-btn" onclick="setDiscount('-53%')">-53</button>
+      <button class="discount-btn" onclick="setDiscount('-54%')">-54</button>
+      <button class="discount-btn" onclick="setDiscount('-55%')">-55</button>
+      <button class="discount-btn" onclick="setDiscount('-56%')">-56</button>
     </div>
     <div id="parsedTags" class="parsed-tags"></div>
     <div id="priceResult"></div>
+    <div class="rules-box">
+      <b>조회 규칙:</b><br>
+      <b>재고품 기본 사양:</b> GATE/GLOBE/CHECK/Y-STR · 10K/20K(150#/300#) · FLGD RF · SCPH2(K규격) or WCB(#규격) · 13CR(Y-STR는 304SS) · H/W(대구경은 GEAR)<br>
+      <b>제조사 견적 필요:</b> RATING 30K↑/600#↑ · END CONN SW/BW/RTJ · TRIM에 HF/STL 추가 · 소구경 GEAR 요청 등 기본 사양 벗어나는 경우
+    </div>
   </div>
 </div>
 
-<!-- ============================================================ -->
-<!-- TAB 2: Orders (수주대장) -->
-<!-- ============================================================ -->
+<!-- TAB 2: Orders (수주대장) — Excel-like -->
 <div id="tab-orders" class="panel">
-  <div class="search-bar">
-    <select id="orderMonth" onchange="loadOrders()"><option value="">전체 월</option></select>
-    <input type="text" id="orderSearch" placeholder="업체명, 발주NO, 품목 검색..." onkeydown="if(event.key==='Enter')loadOrders()">
-    <button onclick="loadOrders()">검색</button>
+  <div class="toolbar">
+    <select id="orderMonth" onchange="loadOrderSheet()"><option value="">월 선택...</option></select>
+    <input type="text" id="orderSearch" placeholder="검색..." onkeydown="if(event.key==='Enter')loadOrderSheet()">
+    <button class="btn btn-primary" onclick="loadOrderSheet()">검색</button>
+    <button class="btn btn-success" onclick="addOrderRow()">+ 행 추가</button>
+    <button class="btn btn-outline" onclick="downloadOrderExcel()">Excel 다운로드</button>
+    <label class="btn btn-outline" style="cursor:pointer">
+      Excel 업로드 <input type="file" accept=".xlsx,.xls" style="display:none" onchange="uploadOrderExcel(this)">
+    </label>
   </div>
-  <div class="card" style="overflow-x:auto;">
-    <div id="ordersTable"><div class="loading">로딩중...</div></div>
-  </div>
+  <div id="orderSpreadsheet"></div>
+  <div id="orderStatus" style="font-size:11px;color:#666;margin-top:6px;"></div>
 </div>
 
-<!-- ============================================================ -->
 <!-- TAB 3: Purchase Orders (발주목록) -->
-<!-- ============================================================ -->
 <div id="tab-po" class="panel">
-  <div class="search-bar">
+  <div class="toolbar">
     <select id="poYear" onchange="loadPO()"><option value="">전체 연도</option></select>
-    <input type="text" id="poSearch" placeholder="주문번호, 품목, 매입처 검색..." onkeydown="if(event.key==='Enter')loadPO()">
-    <button onclick="loadPO()">검색</button>
+    <input type="text" id="poSearch" placeholder="검색..." onkeydown="if(event.key==='Enter')loadPO()">
+    <button class="btn btn-primary" onclick="loadPO()">검색</button>
   </div>
-  <div class="card" style="overflow-x:auto;">
-    <div id="poTable"><div class="loading">로딩중...</div></div>
-  </div>
+  <div class="card" style="overflow-x:auto;"><div id="poTable"><div class="loading">로딩중...</div></div></div>
 </div>
 
-<!-- ============================================================ -->
 <!-- TAB 4: Purchases (매입 내역) -->
-<!-- ============================================================ -->
 <div id="tab-purchases" class="panel">
-  <div class="search-bar">
+  <div class="toolbar">
     <select id="purchaseMonth" onchange="loadPurchases()"><option value="">전체 월</option></select>
-    <input type="text" id="purchaseSearch" placeholder="발주No, 구분 검색..." onkeydown="if(event.key==='Enter')loadPurchases()">
-    <button onclick="loadPurchases()">검색</button>
+    <input type="text" id="purchaseSearch" placeholder="검색..." onkeydown="if(event.key==='Enter')loadPurchases()">
+    <button class="btn btn-primary" onclick="loadPurchases()">검색</button>
   </div>
   <div id="purchaseSummary"></div>
-  <div class="card" style="overflow-x:auto;">
-    <div id="purchasesTable"><div class="loading">로딩중...</div></div>
-  </div>
+  <div class="card" style="overflow-x:auto;"><div id="purchasesTable"><div class="loading">로딩중...</div></div></div>
 </div>
-</div>
+
+</div><!-- /content -->
 
 <script>
 // ============================================================
-// State
+// Globals
 // ============================================================
 let currentDiscount = '-40%';
-let orderPage = 1, poPage = 1, purchasePage = 1;
+let orderSheet = null;  // jspreadsheet instance
+let orderRowMeta = [];  // maps row index → {order_id, item_id}
+let poPage = 1, purchasePage = 1;
 
-// ============================================================
-// Tab switching
-// ============================================================
 function showTab(name) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
   event.target.classList.add('active');
-  if (name === 'orders') { loadOrderMonths(); loadOrders(); }
+  if (name === 'orders') { loadOrderMonths(); loadOrderSheet(); }
   if (name === 'po') { loadPOYears(); loadPO(); }
   if (name === 'purchases') { loadPurchaseMonths(); loadPurchases(); }
 }
 
-// ============================================================
-// Helpers
-// ============================================================
-function fmt(n) { return n != null ? Number(n).toLocaleString() : '-'; }
-function fmtDate(d) { return d || '-'; }
-function escHtml(s) { if (!s) return ''; return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
-async function api(url) {
-  const res = await fetch(url);
-  return res.json();
-}
+function fmt(n) { return n != null && n !== '' ? Number(n).toLocaleString() : ''; }
+function fmtDate(d) { return d || ''; }
+function escHtml(s) { if (!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+async function api(url, opts) { const res = await fetch(url, opts); return res.json(); }
 
 // ============================================================
 // Price Search
@@ -231,7 +235,9 @@ async function api(url) {
 function setDiscount(d) {
   currentDiscount = d;
   document.querySelectorAll('.discount-btn').forEach(b => {
-    b.classList.toggle('active', b.textContent.trim() === (d || '전체'));
+    const label = d || '전체';
+    const btnLabel = b.textContent.trim();
+    b.classList.toggle('active', btnLabel === label || (d && btnLabel === d.replace('%','')));
   });
   searchPrice();
 }
@@ -241,213 +247,319 @@ async function searchPrice() {
   if (!q) return;
   const params = new URLSearchParams({ q, discount: currentDiscount });
   const data = await api('/api/search?' + params);
-
-  // Show parsed tags
-  const tags = document.getElementById('parsedTags');
   const p = data.parsed;
+
   let html = '';
-  const fields = [
-    ['product_type', '제품군'], ['pressure_class', '압력'], ['size_a', '사이즈'], ['discount_rate', '할인율'],
-    ['connection_type', '연결'], ['material_raw', '재질']
-  ];
-  for (const [key, label] of fields) {
+  for (const [key, label] of [['product_type','제품군'],['pressure_class','압력'],['size_a','사이즈'],['discount_rate','할인율'],['connection_type','연결'],['material_raw','재질']]) {
     if (p[key]) html += `<span class="tag tag-ok">${label}: ${p[key]}</span>`;
     else if (['product_type','pressure_class','size_a'].includes(key))
       html += `<span class="tag tag-miss">${label}: 미입력</span>`;
   }
   if (p.warnings) for (const w of p.warnings) html += `<span class="tag tag-warn">${w}</span>`;
-  tags.innerHTML = html;
+  document.getElementById('parsedTags').innerHTML = html;
 
-  // Show results
   const res = document.getElementById('priceResult');
   if (data.status === 'exact') {
     const r = data.results[0];
-    res.innerHTML = `
-      <div class="price-result price-found">
-        <div class="big-price">${fmt(r.unit_price)} KRW</div>
-        <div style="font-size:12px;color:#666;margin-top:4px;">
-          ${r.product_type} · ${r.pressure_class} · ${r.size_a}(${r.size_inch}) · ${r.discount_rate} · ${r.construction_type}
-        </div>
-        <div style="font-size:11px;color:#999;margin-top:2px;">출처: ${r.source_table_title}</div>
-      </div>`;
+    res.innerHTML = `<div class="price-result price-found">
+      <div class="big-price">${fmt(r.unit_price)} KRW</div>
+      <div style="font-size:11px;color:#666;margin-top:3px;">${r.product_type} · ${r.pressure_class} · ${r.size_a}(${r.size_inch}) · ${r.discount_rate} · ${r.construction_type}</div>
+    </div>`;
   } else if (data.status === 'multiple') {
-    let tbl = `<div class="price-result price-multi">
-      <b>${data.count}건 복수 매칭</b> — 조건을 추가해 주세요
-      <table style="margin-top:8px"><tr><th>제품군</th><th>압력</th><th>사이즈</th><th>할인율</th><th>단가(KRW)</th></tr>`;
-    for (const r of data.results.slice(0, 30)) {
-      tbl += `<tr><td>${r.product_type}</td><td>${r.pressure_class}</td><td>${r.size_a}</td>
-        <td>${r.discount_rate}</td><td class="num">${fmt(r.unit_price)}</td></tr>`;
-    }
-    tbl += '</table></div>';
-    res.innerHTML = tbl;
+    let tbl = `<div class="price-result price-multi"><b>${data.count}건 복수 매칭</b> — 조건을 추가하세요
+      <table class="data" style="margin-top:6px"><tr><th>제품군</th><th>압력</th><th>사이즈</th><th>할인율</th><th>단가</th></tr>`;
+    for (const r of data.results.slice(0, 40))
+      tbl += `<tr><td>${r.product_type}</td><td>${r.pressure_class}</td><td>${r.size_a}</td><td>${r.discount_rate}</td><td class="num">${fmt(r.unit_price)}</td></tr>`;
+    res.innerHTML = tbl + '</table></div>';
   } else {
-    res.innerHTML = `
-      <div class="price-result price-none">
-        <b>협가표 내 매칭 없음</b> — 제조사 견적 문의(RFQ)가 필요합니다.
-        <br><button class="rfq-btn" onclick="alert('RFQ 생성 기능은 곧 추가됩니다.')">RFQ 생성</button>
-      </div>`;
+    res.innerHTML = `<div class="price-result price-none"><b>협가표 내 매칭 없음</b> — 제조사 견적 문의(RFQ) 필요
+      <br><button class="rfq-btn" onclick="alert('RFQ 생성 기능 곧 추가')">RFQ 생성</button></div>`;
   }
 }
 
 // ============================================================
-// Orders (수주대장)
+// Orders — Excel-like spreadsheet
 // ============================================================
+const ORDER_COLUMNS = [
+  { type:'hidden', title:'order_id', width:1 },
+  { type:'hidden', title:'item_id', width:1 },
+  { type:'numeric', title:'NO', width:40, readOnly:false },
+  { type:'text', title:'업체명', width:110 },
+  { type:'text', title:'특이사항', width:100 },
+  { type:'text', title:'ITEM', width:260 },
+  { type:'numeric', title:'단가', width:90, mask:'#,##0' },
+  { type:'numeric', title:'수량', width:40 },
+  { type:'text', title:'수주일자', width:85 },
+  { type:'numeric', title:'금액', width:100, mask:'#,##0' },
+  { type:'numeric', title:'재고판매', width:85, mask:'#,##0' },
+  { type:'text', title:'납기일자', width:85 },
+  { type:'text', title:'납품일자', width:85 },
+  { type:'numeric', title:'납품금액', width:100, mask:'#,##0' },
+  { type:'text', title:'매출일자', width:85 },
+  { type:'numeric', title:'매출금액', width:100, mask:'#,##0' },
+  { type:'text', title:'REMARK', width:90 },
+  { type:'text', title:'수금', width:70 },
+  { type:'text', title:'매입처', width:110 },
+  { type:'text', title:'발주일자', width:85 },
+  { type:'numeric', title:'매입금액', width:100, mask:'#,##0' },
+  { type:'text', title:'매입납기', width:85 },
+];
+
+// Field names matching ORDER_COLUMNS index
+const ORDER_FIELDS = [
+  'order_id','item_id','order_seq','customer_name','memo',
+  'item_desc','unit_price','quantity','order_date','amount',
+  'stock_amount','delivery_due','delivery_date','delivery_amount',
+  'sales_date','sales_amount','remark','collection_note',
+  'supplier_name','purchase_date','purchase_amount','purchase_due',
+];
+
 async function loadOrderMonths() {
   const months = await api('/api/orders/months');
   const sel = document.getElementById('orderMonth');
   if (sel.options.length <= 1) {
-    for (const m of months) {
-      sel.add(new Option(m, m));
-    }
+    for (const m of months) sel.add(new Option(m, m));
   }
 }
 
-async function loadOrders(page) {
-  orderPage = page || 1;
+async function loadOrderSheet() {
   const ym = document.getElementById('orderMonth').value;
   const q = document.getElementById('orderSearch').value;
-  const params = new URLSearchParams({ year_month: ym, q, page: orderPage, per_page: 30 });
-  const data = await api('/api/orders?' + params);
-
-  let html = `<table>
-    <tr><th>NO</th><th>발주NO</th><th>업체명</th><th>품목</th><th>금액</th>
-    <th>수주일</th><th>납품금액</th><th>매입처</th><th>매입액</th><th>비고</th></tr>`;
-
-  for (const o of data.orders) {
-    const items = (o.items || []).map(i => escHtml(i.item_desc)).join('\n');
-    html += `<tr>
-      <td>${o.order_seq || ''}</td>
-      <td class="nowrap">${escHtml(o.order_no || o.memo || '')}</td>
-      <td class="nowrap">${escHtml(o.customer_name)}</td>
-      <td class="item-desc">${items}</td>
-      <td class="num">${fmt(o.total_amount)}</td>
-      <td class="nowrap">${fmtDate(o.order_date)}</td>
-      <td class="num">${fmt(o.delivery_amount)}</td>
-      <td class="nowrap">${escHtml(o.supplier_name)}</td>
-      <td class="num">${fmt(o.purchase_amount)}</td>
-      <td>${escHtml(o.remark) || escHtml(o.collection_note) || ''}</td>
-    </tr>`;
+  if (!ym && !q) {
+    document.getElementById('orderSpreadsheet').innerHTML = '<div class="loading">월을 선택하세요</div>';
+    return;
   }
-  html += '</table>';
-  html += renderPagination(data.total, orderPage, 30, 'loadOrders');
 
-  document.getElementById('ordersTable').innerHTML = html;
+  const params = new URLSearchParams({ year_month: ym, q });
+  const rows = await api('/api/orders/rows?' + params);
+
+  // Convert to spreadsheet data
+  const data = [];
+  orderRowMeta = [];
+
+  for (const r of rows) {
+    data.push([
+      r.order_id, r.item_id, r.order_seq, r.customer_name, r.memo,
+      r.item_desc, r.unit_price, r.quantity, r.order_date, r.amount,
+      r.stock_amount, r.delivery_due, r.delivery_date, r.delivery_amount,
+      r.sales_date, r.sales_amount, r.remark, r.collection_note,
+      r.supplier_name, r.purchase_date, r.purchase_amount, r.purchase_due,
+    ]);
+    orderRowMeta.push({ order_id: r.order_id, item_id: r.item_id });
+  }
+
+  // Add some empty rows for new entries
+  for (let i = 0; i < 5; i++) {
+    data.push(new Array(ORDER_COLUMNS.length).fill(''));
+    orderRowMeta.push({ order_id: null, item_id: null });
+  }
+
+  // Destroy previous instance
+  const container = document.getElementById('orderSpreadsheet');
+  container.innerHTML = '';
+
+  orderSheet = jspreadsheet(container, {
+    data: data,
+    columns: ORDER_COLUMNS,
+    tableOverflow: true,
+    tableWidth: '100%',
+    tableHeight: '600px',
+    defaultColWidth: 80,
+    freezeColumns: 5,
+    allowInsertRow: true,
+    allowDeleteRow: true,
+    allowInsertColumn: false,
+    allowDeleteColumn: false,
+    columnSorting: false,
+    onchange: onOrderCellChange,
+    contextMenu: function(obj, x, y, e) {
+      return [
+        { title: '행 추가 (아래)', onclick: function() { addOrderRow(); } },
+        { title: '품목 행 추가', onclick: function() { addItemRow(y); } },
+        { title: '행 삭제', onclick: function() { deleteOrderRow(y); } },
+      ];
+    },
+    style: {},
+  });
+
+  document.getElementById('orderStatus').textContent = `${rows.length}건 로드됨 · 셀을 클릭하여 편집 · 우클릭으로 행 추가/삭제`;
+}
+
+async function onOrderCellChange(instance, cell, x, y, value) {
+  const meta = orderRowMeta[y];
+  if (!meta || (!meta.order_id && !value)) return;
+
+  const field = ORDER_FIELDS[x];
+  if (!field || field === 'order_id' || field === 'item_id') return;
+
+  // If this is a new row (no order_id), create it
+  if (!meta.order_id) {
+    const ym = document.getElementById('orderMonth').value || new Date().toISOString().slice(0,7);
+    const seq = orderSheet.getValueFromCoords(2, y);
+    const customer = orderSheet.getValueFromCoords(3, y);
+    const item = orderSheet.getValueFromCoords(5, y);
+
+    if (!customer && !item) return; // need at least something
+
+    const res = await api('/api/orders/add-row', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ year_month: ym, order_seq: parseInt(seq) || null, customer_name: customer, item_desc: item }),
+    });
+    if (res.ok) {
+      meta.order_id = res.order_id;
+      meta.item_id = res.item_id;
+      orderSheet.setValueFromCoords(0, y, res.order_id, true);
+      orderSheet.setValueFromCoords(1, y, res.item_id, true);
+      document.getElementById('orderStatus').textContent = '새 행 추가됨';
+    }
+    return;
+  }
+
+  // Update existing cell
+  await api('/api/orders/update-cell', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ order_id: meta.order_id, item_id: meta.item_id, field, value: String(value) }),
+  });
+  document.getElementById('orderStatus').textContent = `저장됨: ${ORDER_COLUMNS[x].title} = ${value}`;
+}
+
+function addOrderRow() {
+  if (!orderSheet) return;
+  orderSheet.insertRow();
+  orderRowMeta.push({ order_id: null, item_id: null });
+}
+
+async function addItemRow(afterRow) {
+  const meta = orderRowMeta[afterRow];
+  if (!meta || !meta.order_id) return;
+
+  const res = await api('/api/orders/add-item', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ order_id: meta.order_id, item_desc: '' }),
+  });
+  if (res.ok) {
+    orderSheet.insertRow(1, afterRow);
+    const newRow = afterRow + 1;
+    orderRowMeta.splice(newRow, 0, { order_id: meta.order_id, item_id: res.item_id });
+    orderSheet.setValueFromCoords(0, newRow, meta.order_id, true);
+    orderSheet.setValueFromCoords(1, newRow, res.item_id, true);
+  }
+}
+
+async function deleteOrderRow(row) {
+  const meta = orderRowMeta[row];
+  if (!meta || !meta.order_id) {
+    orderSheet.deleteRow(row);
+    orderRowMeta.splice(row, 1);
+    return;
+  }
+  if (!confirm('이 행을 삭제하시겠습니까?')) return;
+
+  await api('/api/orders/delete-row', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ order_id: meta.order_id, item_id: meta.item_id }),
+  });
+  orderSheet.deleteRow(row);
+  orderRowMeta.splice(row, 1);
+  document.getElementById('orderStatus').textContent = '행 삭제됨';
+}
+
+function downloadOrderExcel() {
+  const ym = document.getElementById('orderMonth').value;
+  window.open('/api/orders/download?year_month=' + encodeURIComponent(ym));
+}
+
+async function uploadOrderExcel(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const ym = document.getElementById('orderMonth').value;
+  if (!ym) { alert('먼저 월을 선택하세요'); return; }
+  if (!confirm(`${ym} 데이터를 이 파일로 교체합니다. 계속하시겠습니까?`)) return;
+
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch('/api/orders/upload?year_month=' + encodeURIComponent(ym), {
+    method: 'POST', body: form,
+  });
+  const data = await res.json();
+  if (data.ok) {
+    alert(`${data.imported}건 업로드 완료`);
+    loadOrderSheet();
+  } else {
+    alert('업로드 실패: ' + (data.error || ''));
+  }
+  input.value = '';
 }
 
 // ============================================================
-// Purchase Orders (발주목록)
+// Purchase Orders
 // ============================================================
 async function loadPOYears() {
   const years = await api('/api/purchase-orders/years');
   const sel = document.getElementById('poYear');
-  if (sel.options.length <= 1) {
-    for (const y of years) sel.add(new Option(y + '년', y));
-  }
+  if (sel.options.length <= 1) { for (const y of years) sel.add(new Option(y+'년', y)); }
 }
 
 async function loadPO(page) {
   poPage = page || 1;
   const year = document.getElementById('poYear').value;
   const q = document.getElementById('poSearch').value;
-  const params = new URLSearchParams({ year, q, page: poPage, per_page: 30 });
-  const data = await api('/api/purchase-orders?' + params);
-
-  let html = `<table>
-    <tr><th>주문번호</th><th>매입처</th><th>발주품목</th><th>수량</th><th>금액</th>
-    <th>발주일</th><th>납기</th><th>출고</th><th>비고</th></tr>`;
-
-  for (const r of data.items) {
-    html += `<tr>
-      <td class="nowrap">${escHtml(r.po_number)}</td>
-      <td class="nowrap">${escHtml(r.supplier_name)}</td>
-      <td class="item-desc">${escHtml(r.item_desc)}</td>
-      <td class="num">${r.quantity || ''}</td>
-      <td class="num">${fmt(r.amount)}</td>
-      <td class="nowrap">${fmtDate(r.order_date)}</td>
-      <td class="nowrap">${escHtml(r.delivery_due)}</td>
-      <td class="${r.shipped && r.shipped.includes('O') ? 'status-o' : ''}">${escHtml(r.shipped)}</td>
-      <td>${escHtml(r.remark) || escHtml(r.customer_name) || ''}</td>
-    </tr>`;
-  }
-  html += '</table>';
-  html += renderPagination(data.total, poPage, 30, 'loadPO');
-
+  const data = await api('/api/purchase-orders?' + new URLSearchParams({ year, q, page: poPage, per_page: 30 }));
+  let html = `<table class="data"><tr><th>주문번호</th><th>매입처</th><th>발주품목</th><th>수량</th><th>금액</th><th>발주일</th><th>납기</th><th>출고</th><th>비고</th></tr>`;
+  for (const r of data.items)
+    html += `<tr><td class="nowrap">${escHtml(r.po_number)}</td><td class="nowrap">${escHtml(r.supplier_name)}</td>
+      <td class="item-desc">${escHtml(r.item_desc)}</td><td class="num">${r.quantity||''}</td><td class="num">${fmt(r.amount)}</td>
+      <td class="nowrap">${fmtDate(r.order_date)}</td><td class="nowrap">${escHtml(r.delivery_due)}</td>
+      <td class="${r.shipped&&r.shipped.includes('O')?'status-o':''}">${escHtml(r.shipped)}</td>
+      <td>${escHtml(r.remark)||escHtml(r.customer_name)||''}</td></tr>`;
+  html += '</table>' + renderPagination(data.total, poPage, 30, 'loadPO');
   document.getElementById('poTable').innerHTML = html;
 }
 
 // ============================================================
-// Purchases (매입 내역)
+// Purchases
 // ============================================================
 async function loadPurchaseMonths() {
   const months = await api('/api/purchases/months');
   const sel = document.getElementById('purchaseMonth');
-  if (sel.options.length <= 1) {
-    for (const m of months) sel.add(new Option(m, m));
-  }
+  if (sel.options.length <= 1) { for (const m of months) sel.add(new Option(m, m)); }
 }
 
 async function loadPurchases(page) {
   purchasePage = page || 1;
   const ym = document.getElementById('purchaseMonth').value;
   const q = document.getElementById('purchaseSearch').value;
-  const params = new URLSearchParams({ year_month: ym, q, page: purchasePage, per_page: 30 });
-  const data = await api('/api/purchases?' + params);
-
-  // Summary
+  const data = await api('/api/purchases?' + new URLSearchParams({ year_month: ym, q, page: purchasePage, per_page: 30 }));
   const sum = await api('/api/purchases/summary?year_month=' + ym);
-  document.getElementById('purchaseSummary').innerHTML = `
-    <div class="stats-row">
-      <div class="stat-card"><div class="stat-num">${sum.cnt}</div><div class="stat-label">건수</div></div>
-      <div class="stat-card"><div class="stat-num">${fmt(sum.total_purchase)}</div><div class="stat-label">총 매입액</div></div>
-      <div class="stat-card"><div class="stat-num">${fmt(sum.total_sales)}</div><div class="stat-label">총 매출액</div></div>
-      <div class="stat-card"><div class="stat-num">${fmt(sum.total_profit)}</div><div class="stat-label">이익(50%)</div></div>
-    </div>`;
-
-  let html = `<table>
-    <tr><th>거래명세표</th><th>수주No.</th><th>발주No.</th><th>발주금액</th>
-    <th>매입액</th><th>구분</th><th>MSM매출액</th><th>이익50%</th><th>비고</th></tr>`;
-
-  for (const r of data.items) {
-    html += `<tr>
-      <td class="nowrap">${escHtml(r.invoice_no)}</td>
-      <td class="nowrap">${escHtml(r.order_ref)}</td>
-      <td class="nowrap">${escHtml(r.po_ref)}</td>
-      <td class="num">${fmt(r.po_amount)}</td>
-      <td class="num">${fmt(r.purchase_amount)}</td>
-      <td class="nowrap">${escHtml(r.category)}</td>
-      <td class="num">${fmt(r.sales_amount)}</td>
-      <td class="num">${fmt(r.profit_half)}</td>
-      <td>${escHtml(r.memo)}</td>
-    </tr>`;
-  }
-  html += '</table>';
-  html += renderPagination(data.total, purchasePage, 30, 'loadPurchases');
-
+  document.getElementById('purchaseSummary').innerHTML = `<div class="stats-row">
+    <div class="stat-card"><div class="stat-num">${sum.cnt}</div><div class="stat-label">건수</div></div>
+    <div class="stat-card"><div class="stat-num">${fmt(sum.total_purchase)}</div><div class="stat-label">총 매입액</div></div>
+    <div class="stat-card"><div class="stat-num">${fmt(sum.total_sales)}</div><div class="stat-label">총 매출액</div></div>
+    <div class="stat-card"><div class="stat-num">${fmt(sum.total_profit)}</div><div class="stat-label">이익(50%)</div></div>
+  </div>`;
+  let html = `<table class="data"><tr><th>거래명세표</th><th>수주No.</th><th>발주No.</th><th>발주금액</th><th>매입액</th><th>구분</th><th>MSM매출</th><th>이익50%</th><th>비고</th></tr>`;
+  for (const r of data.items)
+    html += `<tr><td class="nowrap">${escHtml(r.invoice_no)}</td><td class="nowrap">${escHtml(r.order_ref)}</td>
+      <td class="nowrap">${escHtml(r.po_ref)}</td><td class="num">${fmt(r.po_amount)}</td><td class="num">${fmt(r.purchase_amount)}</td>
+      <td class="nowrap">${escHtml(r.category)}</td><td class="num">${fmt(r.sales_amount)}</td><td class="num">${fmt(r.profit_half)}</td>
+      <td>${escHtml(r.memo)}</td></tr>`;
+  html += '</table>' + renderPagination(data.total, purchasePage, 30, 'loadPurchases');
   document.getElementById('purchasesTable').innerHTML = html;
 }
 
-// ============================================================
-// Pagination
-// ============================================================
-function renderPagination(total, page, perPage, fn) {
-  const pages = Math.ceil(total / perPage);
-  return `<div class="pagination">
-    <span>${total}건 중 ${(page-1)*perPage+1}-${Math.min(page*perPage, total)}건</span>
-    <span>
-      <button ${page<=1?'disabled':''} onclick="${fn}(${page-1})">이전</button>
-      <span style="margin:0 8px">${page} / ${pages}</span>
-      <button ${page>=pages?'disabled':''} onclick="${fn}(${page+1})">다음</button>
-    </span>
-  </div>`;
+function renderPagination(total, page, pp, fn) {
+  const pages = Math.ceil(total / pp);
+  return `<div class="pagination"><span>${total}건</span><span>
+    <button ${page<=1?'disabled':''} onclick="${fn}(${page-1})">이전</button>
+    <span style="margin:0 6px">${page}/${pages||1}</span>
+    <button ${page>=pages?'disabled':''} onclick="${fn}(${page+1})">다음</button></span></div>`;
 }
 
-// ============================================================
-// Init
-// ============================================================
-document.addEventListener('DOMContentLoaded', () => {
-  // Auto-focus search on load
-  document.getElementById('priceQuery').focus();
-});
+document.addEventListener('DOMContentLoaded', () => { document.getElementById('priceQuery').focus(); });
 </script>
 </body>
 </html>
