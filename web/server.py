@@ -368,11 +368,13 @@ def download_orders_excel(year_month: str = Query("")):
     wb.save(buf)
     buf.seek(0)
 
+    from urllib.parse import quote
     filename = f"수주대장_{year_month or '전체'}.xlsx"
+    encoded = quote(filename)
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"},
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded}"},
     )
 
 
