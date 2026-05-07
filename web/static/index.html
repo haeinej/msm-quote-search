@@ -23,7 +23,7 @@ body { font-family: -apple-system, 'Malgun Gothic', sans-serif; background: #f5f
 .tab:hover { color: white; background: rgba(255,255,255,0.05); }
 .tab.active { color: white; border-bottom-color: #ffd740; }
 
-.content { max-width: 1600px; margin: 0 auto; padding: 12px; }
+.content { max-width: 100%; margin: 0 auto; padding: 12px; overflow-x: hidden; }
 .panel { display: none; }
 .panel.active { display: block; }
 
@@ -94,10 +94,12 @@ table.data tr:hover { background: #f8f9ff; }
 
 .loading { text-align: center; padding: 20px; color: #999; }
 
-/* jspreadsheet overrides */
-.jexcel_container { font-size: 11px !important; }
+/* jspreadsheet overrides — contain within panel, internal scroll only */
+.jexcel_container { font-size: 11px !important; max-width: 100% !important; overflow: hidden !important; }
+.jexcel_content { max-width: 100% !important; overflow-x: auto !important; }
 .jexcel td { font-size: 11px !important; }
 .jexcel thead td { font-size: 10px !important; font-weight: 600 !important; }
+#orderSpreadsheet, #poSpreadsheet { max-width: 100%; overflow: hidden; }
 
 /* Upload area */
 .upload-area { border: 2px dashed #ccc; border-radius: 8px; padding: 16px; text-align: center;
@@ -182,14 +184,20 @@ table.data tr:hover { background: #f8f9ff; }
   <div id="orderStatus" style="font-size:11px;color:#666;margin-top:6px;"></div>
 </div>
 
-<!-- TAB 3: Purchase Orders (발주목록) -->
+<!-- TAB 3: Purchase Orders (발주목록) — Excel-like -->
 <div id="tab-po" class="panel">
   <div class="toolbar">
-    <select id="poYear" onchange="loadPO()"><option value="">전체 연도</option></select>
-    <input type="text" id="poSearch" placeholder="검색..." onkeydown="if(event.key==='Enter')loadPO()">
-    <button class="btn btn-primary" onclick="loadPO()">검색</button>
+    <select id="poYear" onchange="loadPOSheet()"><option value="">연도 선택...</option></select>
+    <input type="text" id="poSearch" placeholder="검색..." onkeydown="if(event.key==='Enter')loadPOSheet()">
+    <button class="btn btn-primary" onclick="loadPOSheet()">검색</button>
+    <button class="btn btn-success" onclick="addPORow()">+ 행 추가</button>
+    <button class="btn btn-outline" onclick="downloadPOExcel()">Excel 다운로드</button>
+    <label class="btn btn-outline" style="cursor:pointer">
+      Excel 업로드 <input type="file" accept=".xlsx,.xls" style="display:none" onchange="uploadPOExcel(this)">
+    </label>
   </div>
-  <div class="card" style="overflow-x:auto;"><div id="poTable"><div class="loading">로딩중...</div></div></div>
+  <div id="poSpreadsheet"></div>
+  <div id="poStatus" style="font-size:11px;color:#666;margin-top:6px;"></div>
 </div>
 
 <!-- TAB 4: Purchases (매입 내역) -->
@@ -212,7 +220,7 @@ table.data tr:hover { background: #f8f9ff; }
 let currentDiscount = '-40%';
 let orderSheet = null;  // jspreadsheet instance
 let orderRowMeta = [];  // maps row index → {order_id, item_id}
-let poPage = 1, purchasePage = 1;
+let purchasePage = 1;
 
 function showTab(name) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
@@ -220,7 +228,7 @@ function showTab(name) {
   document.getElementById('tab-' + name).classList.add('active');
   event.target.classList.add('active');
   if (name === 'orders') { loadOrderMonths(); loadOrderSheet(); }
-  if (name === 'po') { loadPOYears(); loadPO(); }
+  if (name === 'po') { loadPOYears(); loadPOSheet(); }
   if (name === 'purchases') { loadPurchaseMonths(); loadPurchases(); }
 }
 
@@ -496,28 +504,160 @@ async function uploadOrderExcel(input) {
 }
 
 // ============================================================
-// Purchase Orders
+// Purchase Orders — Excel-like spreadsheet
 // ============================================================
+let poSheet = null;
+let poRowMeta = [];  // maps row index → { po_id }
+
+const PO_COLUMNS = [
+  { type:'hidden', title:'id', width:1 },
+  { type:'text', title:'주문번호', width:150 },
+  { type:'text', title:'매입처', width:110 },
+  { type:'text', title:'발주품목', width:320 },
+  { type:'numeric', title:"Q'TY", width:50 },
+  { type:'numeric', title:'금액(VAT제외)', width:110, mask:'#,##0' },
+  { type:'text', title:'발주일자', width:90 },
+  { type:'text', title:'납기', width:110 },
+  { type:'text', title:'출고여부', width:70 },
+  { type:'text', title:'비고', width:140 },
+];
+const PO_FIELDS = ['id','po_number','supplier_name','item_desc','quantity','amount','order_date','delivery_due','shipped','remark'];
+
 async function loadPOYears() {
   const years = await api('/api/purchase-orders/years');
   const sel = document.getElementById('poYear');
   if (sel.options.length <= 1) { for (const y of years) sel.add(new Option(y+'년', y)); }
 }
 
-async function loadPO(page) {
-  poPage = page || 1;
+async function loadPOSheet() {
   const year = document.getElementById('poYear').value;
   const q = document.getElementById('poSearch').value;
-  const data = await api('/api/purchase-orders?' + new URLSearchParams({ year, q, page: poPage, per_page: 30 }));
-  let html = `<table class="data"><tr><th>주문번호</th><th>매입처</th><th>발주품목</th><th>수량</th><th>금액</th><th>발주일</th><th>납기</th><th>출고</th><th>비고</th></tr>`;
-  for (const r of data.items)
-    html += `<tr><td class="nowrap">${escHtml(r.po_number)}</td><td class="nowrap">${escHtml(r.supplier_name)}</td>
-      <td class="item-desc">${escHtml(r.item_desc)}</td><td class="num">${r.quantity||''}</td><td class="num">${fmt(r.amount)}</td>
-      <td class="nowrap">${fmtDate(r.order_date)}</td><td class="nowrap">${escHtml(r.delivery_due)}</td>
-      <td class="${r.shipped&&r.shipped.includes('O')?'status-o':''}">${escHtml(r.shipped)}</td>
-      <td>${escHtml(r.remark)||escHtml(r.customer_name)||''}</td></tr>`;
-  html += '</table>' + renderPagination(data.total, poPage, 30, 'loadPO');
-  document.getElementById('poTable').innerHTML = html;
+  if (!year && !q) {
+    document.getElementById('poSpreadsheet').innerHTML = '<div class="loading">연도를 선택하세요</div>';
+    return;
+  }
+  const params = new URLSearchParams({ year, q });
+  const rows = await api('/api/purchase-orders/rows?' + params);
+
+  const data = [];
+  poRowMeta = [];
+  for (const r of rows) {
+    data.push([r.id, r.po_number, r.supplier_name, r.item_desc, r.quantity, r.amount,
+               r.order_date, r.delivery_due, r.shipped, r.remark || r.customer_name]);
+    poRowMeta.push({ po_id: r.id });
+  }
+  // Empty rows for new entries
+  for (let i = 0; i < 5; i++) {
+    data.push(new Array(PO_COLUMNS.length).fill(''));
+    poRowMeta.push({ po_id: null });
+  }
+
+  const container = document.getElementById('poSpreadsheet');
+  container.innerHTML = '';
+  poSheet = jspreadsheet(container, {
+    data: data,
+    columns: PO_COLUMNS,
+    tableOverflow: true,
+    tableWidth: '100%',
+    tableHeight: '600px',
+    defaultColWidth: 80,
+    freezeColumns: 3,
+    allowInsertRow: true,
+    allowDeleteRow: true,
+    allowInsertColumn: false,
+    allowDeleteColumn: false,
+    columnSorting: false,
+    onchange: onPOCellChange,
+    contextMenu: function(obj, x, y, e) {
+      return [
+        { title: '행 추가 (아래)', onclick: function() { addPORow(); } },
+        { title: '행 삭제', onclick: function() { deletePORow(y); } },
+      ];
+    },
+  });
+  document.getElementById('poStatus').textContent = `${rows.length}건 로드됨 · 셀 클릭하여 편집`;
+}
+
+async function onPOCellChange(instance, cell, x, y, value) {
+  const meta = poRowMeta[y];
+  if (!meta) return;
+  const field = PO_FIELDS[x];
+  if (!field || field === 'id') return;
+
+  // New row — create it
+  if (!meta.po_id) {
+    const year = parseInt(document.getElementById('poYear').value) || new Date().getFullYear();
+    const poNum = poSheet.getValueFromCoords(1, y);
+    const supplier = poSheet.getValueFromCoords(2, y);
+    const item = poSheet.getValueFromCoords(3, y);
+    if (!poNum && !supplier && !item) return;
+
+    const res = await api('/api/purchase-orders/add-row', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ year, po_number: poNum, supplier_name: supplier, item_desc: item }),
+    });
+    if (res.ok) {
+      meta.po_id = res.po_id;
+      poSheet.setValueFromCoords(0, y, res.po_id, true);
+      document.getElementById('poStatus').textContent = '새 행 추가됨';
+    }
+    return;
+  }
+
+  // Update existing
+  await api('/api/purchase-orders/update-cell', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ po_id: meta.po_id, field, value: String(value) }),
+  });
+  document.getElementById('poStatus').textContent = `저장됨: ${PO_COLUMNS[x].title} = ${value}`;
+}
+
+function addPORow() {
+  if (!poSheet) return;
+  poSheet.insertRow();
+  poRowMeta.push({ po_id: null });
+}
+
+async function deletePORow(row) {
+  const meta = poRowMeta[row];
+  if (!meta || !meta.po_id) {
+    poSheet.deleteRow(row);
+    poRowMeta.splice(row, 1);
+    return;
+  }
+  if (!confirm('이 행을 삭제하시겠습니까?')) return;
+  await api('/api/purchase-orders/delete-row', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ po_id: meta.po_id }),
+  });
+  poSheet.deleteRow(row);
+  poRowMeta.splice(row, 1);
+  document.getElementById('poStatus').textContent = '행 삭제됨';
+}
+
+function downloadPOExcel() {
+  const year = document.getElementById('poYear').value;
+  window.open('/api/purchase-orders/download?year=' + encodeURIComponent(year));
+}
+
+async function uploadPOExcel(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const year = document.getElementById('poYear').value;
+  if (!year) { alert('먼저 연도를 선택하세요'); return; }
+  if (!confirm(`${year}년 발주목록을 이 파일로 교체합니다. 계속?`)) return;
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch('/api/purchase-orders/upload?year=' + encodeURIComponent(year), {
+    method: 'POST', body: form,
+  });
+  const data = await res.json();
+  if (data.ok) { alert(`${data.imported}건 업로드 완료`); loadPOSheet(); }
+  else { alert('업로드 실패: ' + (data.error || '')); }
+  input.value = '';
 }
 
 // ============================================================

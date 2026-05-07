@@ -622,6 +622,264 @@ def po_years():
     return [r["year"] for r in rows]
 
 
+@app.get("/api/purchase-orders/rows")
+def list_po_rows(year: int = Query(0), q: str = Query("")):
+    """Return flat rows for spreadsheet view."""
+    conn = get_msm_db()
+    conditions = []
+    params = []
+    if year:
+        conditions.append("year = ?")
+        params.append(year)
+    if q:
+        conditions.append("(po_number LIKE ? OR item_desc LIKE ? OR supplier_name LIKE ? OR customer_name LIKE ?)")
+        params.extend([f"%{q}%"] * 4)
+    where = " AND ".join(conditions) if conditions else "1=1"
+    rows = conn.execute(
+        f"SELECT * FROM purchase_orders WHERE {where} ORDER BY order_date ASC NULLS LAST, id ASC", params
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+class POCellUpdate(BaseModel):
+    po_id: int
+    field: str
+    value: Optional[str] = None
+
+
+@app.post("/api/purchase-orders/update-cell")
+def update_po_cell(update: POCellUpdate):
+    valid_fields = {
+        "po_number", "supplier_name", "item_desc", "quantity", "amount",
+        "order_date", "delivery_due", "delivery_date", "shipped",
+        "customer_name", "remark",
+    }
+    if update.field not in valid_fields:
+        return {"ok": False, "error": f"Unknown field: {update.field}"}
+    conn = get_msm_db()
+    value = update.value if update.value != "" else None
+    conn.execute(
+        f"UPDATE purchase_orders SET {update.field} = ? WHERE id = ?",
+        (value, update.po_id),
+    )
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+class NewPORow(BaseModel):
+    year: int
+    po_number: Optional[str] = None
+    supplier_name: Optional[str] = None
+    item_desc: Optional[str] = None
+
+
+@app.post("/api/purchase-orders/add-row")
+def add_po_row(row: NewPORow):
+    conn = get_msm_db()
+    cur = conn.execute(
+        "INSERT INTO purchase_orders (year, po_number, supplier_name, item_desc) VALUES (?, ?, ?, ?)",
+        (row.year, row.po_number, row.supplier_name, row.item_desc),
+    )
+    conn.commit()
+    po_id = cur.lastrowid
+    conn.close()
+    return {"ok": True, "po_id": po_id}
+
+
+@app.post("/api/purchase-orders/delete-row")
+def delete_po_row(po_id: int = Body(...)):
+    conn = get_msm_db()
+    conn.execute("DELETE FROM purchase_orders WHERE id = ?", (po_id,))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+@app.get("/api/purchase-orders/download")
+def download_po_excel(year: int = Query(0)):
+    """Download POs as Excel matching original 발주목록 format."""
+    import openpyxl
+    from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+    from urllib.parse import quote
+
+    conn = get_msm_db()
+    if year:
+        rows = conn.execute(
+            "SELECT * FROM purchase_orders WHERE year = ? ORDER BY order_date ASC NULLS LAST, id ASC",
+            (year,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM purchase_orders ORDER BY year DESC, order_date ASC NULLS LAST, id ASC"
+        ).fetchall()
+    conn.close()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = str(year) if year else "전체"
+
+    thin = Border(
+        left=Side(style='thin'), right=Side(style='thin'),
+        top=Side(style='thin'), bottom=Side(style='thin'),
+    )
+    header_fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
+    header_font = Font(bold=True, size=9)
+
+    # Row 1: title
+    ws.merge_cells("A1:I1")
+    ws["A1"] = "매입발주목록"
+    ws["A1"].font = Font(bold=True, size=13)
+    ws["A1"].alignment = Alignment(horizontal="center")
+
+    # Row 2: headers
+    headers = ["주문번호", "매입처", "발주품목", "Q'TY", "금액(VAT제외)",
+               "발주일자", "납기", "출고여부", "비고"]
+    widths = [20, 14, 50, 6, 14, 12, 14, 10, 16]
+    for i, (h, w) in enumerate(zip(headers, widths), 1):
+        cell = ws.cell(row=2, column=i, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.border = thin
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
+
+    # Data
+    for idx, row in enumerate(rows):
+        row = dict(row)
+        r = idx + 3
+        data = [
+            row.get("po_number"),
+            row.get("supplier_name"),
+            row.get("item_desc"),
+            row.get("quantity"),
+            row.get("amount"),
+            row.get("order_date"),
+            row.get("delivery_due"),
+            row.get("shipped"),
+            row.get("remark") or row.get("customer_name"),
+        ]
+        for i, val in enumerate(data, 1):
+            cell = ws.cell(row=r, column=i, value=val)
+            cell.border = thin
+            if isinstance(val, (int, float)) and val and i in (4, 5):
+                cell.number_format = '#,##0'
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    filename = f"발주목록_{year or '전체'}.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
+    )
+
+
+@app.post("/api/purchase-orders/upload")
+async def upload_po_excel(file: UploadFile = File(...), year: int = Query(0)):
+    """Upload Excel to replace POs for a given year."""
+    import openpyxl
+
+    if not year:
+        return {"ok": False, "error": "year parameter required"}
+
+    content = await file.read()
+    wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
+    ws = wb.active
+
+    # Find header row
+    header_row = None
+    for r in range(1, min(10, ws.max_row + 1)):
+        for c in range(1, ws.max_column + 1):
+            v = ws.cell(r, c).value
+            if v and ("주문번호" in str(v) or "발주서" in str(v)):
+                header_row = r
+                break
+        if header_row:
+            break
+    if not header_row:
+        return {"ok": False, "error": "Cannot find header row"}
+
+    col_map = {}
+    for c in range(1, ws.max_column + 1):
+        v = str(ws.cell(header_row, c).value or "").strip()
+        if "주문번호" in v or "발주서" in v:
+            col_map["po_number"] = c
+        elif "매입처" in v:
+            col_map["supplier"] = c
+        elif "발주품목" in v or "DESCRIPTION" in v:
+            col_map["item"] = c
+        elif "QTY" in v.upper() or "Q'TY" in v:
+            col_map["qty"] = c
+        elif "금액" in v:
+            col_map["amount"] = c
+        elif "발주일자" in v:
+            col_map["order_date"] = c
+        elif "납기" in v:
+            col_map["delivery_due"] = c
+        elif "출고" in v:
+            col_map["shipped"] = c
+        elif "비고" in v:
+            col_map["remark"] = c
+
+    def cell_val(r, key):
+        c = col_map.get(key)
+        return ws.cell(r, c).value if c else None
+
+    def to_date_str(v):
+        if v is None: return None
+        if isinstance(v, datetime): return v.strftime("%Y-%m-%d")
+        if isinstance(v, date): return v.isoformat()
+        return str(v).strip() or None
+
+    def to_int(v):
+        if v is None or v == "": return None
+        try: return int(float(v))
+        except: return None
+
+    conn = get_msm_db()
+    conn.execute("DELETE FROM purchase_orders WHERE year = ?", (year,))
+    conn.commit()
+
+    imported = 0
+    for r in range(header_row + 1, ws.max_row + 1):
+        po = cell_val(r, "po_number")
+        item = cell_val(r, "item")
+        amount = cell_val(r, "amount")
+        if not po and not item and not amount:
+            continue
+
+        delivery_due_raw = cell_val(r, "delivery_due")
+        delivery_due = to_date_str(delivery_due_raw)
+        if delivery_due_raw and not delivery_due:
+            delivery_due = str(delivery_due_raw).strip()
+
+        conn.execute("""
+            INSERT INTO purchase_orders (year, po_number, supplier_name, item_desc, quantity, amount,
+                order_date, delivery_due, shipped, remark, source_file, source_sheet)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            year,
+            str(po).strip() if po else None,
+            str(cell_val(r, "supplier")).strip() if cell_val(r, "supplier") else None,
+            str(item).strip() if item else None,
+            to_int(cell_val(r, "qty")),
+            to_int(amount),
+            to_date_str(cell_val(r, "order_date")),
+            delivery_due,
+            str(cell_val(r, "shipped")).strip() if cell_val(r, "shipped") else None,
+            str(cell_val(r, "remark")).strip() if cell_val(r, "remark") else None,
+            "upload", str(year),
+        ))
+        imported += 1
+
+    conn.commit()
+    conn.close()
+    return {"ok": True, "imported": imported, "year": year}
+
+
 # ============================================================
 # API: Purchases (매입 내역)
 # ============================================================
