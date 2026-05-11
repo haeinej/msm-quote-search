@@ -14,6 +14,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
+import re as _re
 
 load_dotenv()
 
@@ -94,6 +95,32 @@ async def logout(msm_token: Optional[str] = Cookie(None)):
     return response
 
 
+@app.get("/flow", response_class=HTMLResponse)
+def flow_page():
+    flow_path = os.path.join(STATIC_DIR, "flow.html")
+    with open(flow_path, encoding="utf-8") as f:
+        return HTMLResponse(f.read())
+
+
+@app.get("/api/activity-log")
+def get_activity_log(limit: int = Query(100)):
+    """Get recent activity log."""
+    if is_supabase():
+        return _sq("activity_log").select("*").order("created_at", desc=True).limit(limit).execute().data
+    return []
+
+
+@app.get("/api/workflow/alerts")
+def get_alerts():
+    """Count pending receives and invoice mismatches."""
+    pending = 0
+    mismatch = 0
+    if is_supabase():
+        r = _sq("orders").select("id", count="exact").eq("state", "발주중").execute()
+        pending = r.count or 0
+    return {"pending_receive": pending, "mismatch": mismatch}
+
+
 # ============================================================
 # Helpers
 # ============================================================
@@ -103,6 +130,20 @@ def sb():
 
 def _sq(table):
     return sb().table(table)
+
+def _safe_col(field: str) -> str:
+    """Validate a column name to prevent SQL injection via f-string interpolation."""
+    if not _re.match(r'^[a-z_]+$', field):
+        raise HTTPException(400, f"Invalid field name: {field}")
+    return field
+
+def _log(order_id, action, detail=None):
+    """Log an activity to the activity_log table."""
+    try:
+        if is_supabase():
+            _sq("activity_log").insert({"order_id": order_id, "action": action, "detail": detail}).execute()
+    except Exception:
+        pass  # Don't fail the main operation if logging fails
 
 
 # ============================================================
@@ -214,15 +255,16 @@ def update_order_cell(update: OrderRowUpdate):
     numeric = {"unit_price","quantity","amount","stock_amount","delivery_amount","sales_amount","purchase_amount"}
     if field in numeric and value is not None:
         try: value = int(float(str(value).replace(",","")))
-        except: pass
+        except (ValueError, TypeError): pass
     if is_supabase():
         if field in item_fields and update.item_id: _sq("order_items").update({field:value}).eq("id",update.item_id).execute()
         elif field in order_fields: _sq("orders").update({field:value}).eq("id",update.order_id).execute()
         else: return {"ok":False,"error":f"Unknown field: {field}"}
     else:
         conn = get_sqlite()
-        if field in item_fields and update.item_id: conn.execute(f"UPDATE order_items SET {field}=? WHERE id=?",(value,update.item_id))
-        elif field in order_fields: conn.execute(f"UPDATE orders SET {field}=? WHERE id=?",(value,update.order_id))
+        col = _safe_col(field)
+        if field in item_fields and update.item_id: conn.execute(f"UPDATE order_items SET {col}=? WHERE id=?",(value,update.item_id))
+        elif field in order_fields: conn.execute(f"UPDATE orders SET {col}=? WHERE id=?",(value,update.order_id))
         else: conn.close(); return {"ok":False,"error":f"Unknown field: {field}"}
         conn.commit(); conn.close()
     return {"ok":True}
@@ -291,6 +333,22 @@ def delete_order_row(order_id: int = Body(...), item_id: Optional[int] = Body(No
             conn.execute("DELETE FROM orders WHERE id=?",(order_id,))
         conn.commit(); conn.close()
     return {"ok":True}
+
+
+@app.post("/api/orders/delete-order")
+def delete_entire_order(order_id: int = Body(...)):
+    """Delete an entire order and all its items."""
+    if is_supabase():
+        _sq("order_items").delete().eq("order_id", order_id).execute()
+        _sq("orders").delete().eq("id", order_id).execute()
+    else:
+        conn = get_sqlite()
+        conn.execute("DELETE FROM order_items WHERE order_id=?", (order_id,))
+        conn.execute("DELETE FROM orders WHERE id=?", (order_id,))
+        conn.commit()
+        conn.close()
+    return {"ok": True}
+
 
 @app.get("/api/orders/download")
 def download_orders_excel(year_month: str = Query("")):
@@ -388,7 +446,7 @@ async def upload_orders_excel(file: UploadFile = File(...), year_month: str = Qu
     def ti(v):
         if v is None or v=="": return None
         try: return int(float(v))
-        except: return None
+        except (ValueError, TypeError): return None
     # Delete existing
     if is_supabase():
         ex=_sq("orders").select("id").eq("year_month",year_month).execute()
@@ -401,7 +459,7 @@ async def upload_orders_excel(file: UploadFile = File(...), year_month: str = Qu
         oids=[r[0] for r in conn.execute("SELECT id FROM orders WHERE year_month=?",(year_month,)).fetchall()]
         if oids:
             ph=",".join("?"*len(oids)); conn.execute(f"DELETE FROM order_items WHERE order_id IN ({ph})",oids); conn.execute(f"DELETE FROM orders WHERE id IN ({ph})",oids)
-        conn.commit()
+        # No commit here — commit after all inserts so delete+insert is atomic
     imported=0; coid=None
     for r in range(header_row+1,ws.max_row+1):
         seq,cust,item=cv(r,"seq"),cv(r,"customer"),cv(r,"item")
@@ -461,9 +519,9 @@ def update_po_cell(update: POCellUpdate):
     value=update.value if update.value!="" else None
     if update.field in("quantity","amount") and value is not None:
         try: value=int(float(str(value).replace(",","")))
-        except: pass
+        except (ValueError, TypeError): pass
     if is_supabase(): _sq("purchase_orders").update({update.field:value}).eq("id",update.po_id).execute()
-    else: conn=get_sqlite(); conn.execute(f"UPDATE purchase_orders SET {update.field}=? WHERE id=?",(value,update.po_id)); conn.commit(); conn.close()
+    else: col=_safe_col(update.field); conn=get_sqlite(); conn.execute(f"UPDATE purchase_orders SET {col}=? WHERE id=?",(value,update.po_id)); conn.commit(); conn.close()
     return {"ok":True}
 
 class NewPORow(BaseModel):
@@ -539,9 +597,9 @@ async def upload_po_excel(file: UploadFile = File(...), year: int = Query(0)):
     def ti(v):
         if v is None or v=="": return None
         try: return int(float(v))
-        except: return None
+        except (ValueError, TypeError): return None
     if is_supabase(): _sq("purchase_orders").delete().eq("year",year).execute()
-    else: conn=get_sqlite(); conn.execute("DELETE FROM purchase_orders WHERE year=?",(year,)); conn.commit()
+    else: conn=get_sqlite(); conn.execute("DELETE FROM purchase_orders WHERE year=?",(year,))  # commit deferred until after inserts
     batch=[]; imported=0
     for r in range(hr+1,ws.max_row+1):
         po,item,amt=cv(r,"po"),cv(r,"item"),cv(r,"amt")
@@ -645,6 +703,7 @@ class CreateOrderRequest(BaseModel):
     quantity: int = 1
     discount_rate: Optional[str] = None
     note: Optional[str] = None
+    unit_price: Optional[int] = None
 
 
 @app.post("/api/workflow/orders")
@@ -687,6 +746,8 @@ def create_order(req: CreateOrderRequest):
                 unit_price = row["unit_price"]
         conn.close()
 
+    if req.unit_price is not None:
+        unit_price = req.unit_price
     revenue = (unit_price * req.quantity) if unit_price else None
 
     order_data = {
@@ -703,8 +764,25 @@ def create_order(req: CreateOrderRequest):
     }
 
     if is_supabase():
+        # Auto-assign order_seq (max seq in this month + 1)
+        ym = order_data["year_month"]
+        max_seq = _sq("orders").select("order_seq").eq("year_month", ym).not_.is_("order_seq", "null").order("order_seq", desc=True).limit(1).execute().data
+        next_seq = (max_seq[0]["order_seq"] + 1) if max_seq else 1
+        order_data["order_seq"] = next_seq
+        order_data["order_date"] = dt.now().strftime("%Y-%m-%d")
+
         r = _sq("orders").insert(order_data).execute()
         order = r.data[0]
+        order_id = order["id"]
+
+        # Also create order_item so it shows in 수주대장 spreadsheet
+        _sq("order_items").insert({
+            "order_id": order_id,
+            "item_desc": req.spec_text,
+            "unit_price": unit_price,
+            "quantity": req.quantity,
+            "amount": revenue,
+        }).execute()
     else:
         conn = get_sqlite()
         _run_sqlite_migration(conn)
@@ -718,6 +796,8 @@ def create_order(req: CreateOrderRequest):
         conn.commit()
         conn.close()
         order = order_data
+
+    _log(order.get("id") or order_data.get("id"), "견적 등록", f"{req.spec_text} | {req.customer_name} | {req.quantity}EA | {unit_price} KRW")
 
     return {
         "ok": True,
@@ -763,6 +843,7 @@ def confirm_order(order_id: int):
         conn.commit()
         conn.close()
 
+    _log(order_id, "수주 확정", f"유형: {'재고품' if stock_available else '제조품'} | 재고: {'있음' if stock_available else '없음'}")
     return {"ok": True, "state": "수주확정", "type": "재고품" if stock_available else "제조품", "stock_available": stock_available}
 
 
@@ -808,6 +889,7 @@ def issue_po(order_id: int, req: IssuePORequest):
         conn.commit()
         conn.close()
 
+    _log(order_id, "제조사 발주", f"발주처: {req.manufacturer} | 매입단가: {req.cost_unit_price} | 납기: {req.requested_delivery_at}")
     return {"ok": True, "state": "발주중"}
 
 
@@ -863,6 +945,7 @@ def receive_order(order_id: int, req: ReceiveRequest):
         cost = (r.data[0]["cost"] if is_supabase() else row["cost"]) or 0
         diff = req.manufacturer_invoice_amount - cost
 
+    _log(order_id, "입고 완료", f"거래명세: {req.manufacturer_invoice_number} | 금액: {req.manufacturer_invoice_amount} | 매칭: {match_status}")
     return {"ok": True, "state": "입고완료", "match_status": match_status, "difference": diff}
 
 
@@ -897,6 +980,26 @@ def ship_order(order_id: int):
         conn.commit()
         conn.close()
 
+    # Deduct inventory if 재고품
+    if is_supabase():
+        full = _sq("orders").select("type,spec_text,quantity").eq("id", order_id).execute().data
+        if full and full[0].get("type") == "재고품" and full[0].get("spec_text"):
+            from parser import parse_query
+            parsed = parse_query(full[0]["spec_text"])
+            pt, pc, sv = parsed.get("product_type"), parsed.get("pressure_class"), parsed.get("size_a")
+            if pt:
+                inv_q = _sq("erp_inventory").select("id,stock_quantity").eq("product_type", pt)
+                if pc: inv_q = inv_q.eq("pressure_class", pc)
+                if sv:
+                    sv_num = sv.replace("A", "")
+                    inv_q = inv_q.eq("size_value", sv_num)
+                inv = inv_q.limit(1).execute().data
+                if inv and inv[0]["stock_quantity"] > 0:
+                    new_qty = max(0, inv[0]["stock_quantity"] - (full[0].get("quantity") or 1))
+                    _sq("erp_inventory").update({"stock_quantity": new_qty}).eq("id", inv[0]["id"]).execute()
+                    _log(order_id, "재고 차감", f"{pt} {pc} {sv}: {inv[0]['stock_quantity']} → {new_qty}")
+
+    _log(order_id, "출고 완료", None)
     return {"ok": True, "state": "출고완료"}
 
 
@@ -927,6 +1030,7 @@ def cancel_order(order_id: int, req: CancelRequest):
         conn.commit()
         conn.close()
 
+    _log(order_id, req.target_state, None)
     return {"ok": True, "state": req.target_state}
 
 
@@ -953,41 +1057,57 @@ def view_order_book(year_month: str = Query("")):
             rows = [dict(r) for r in conn.execute(
                 f"SELECT * FROM orders WHERE {w} ORDER BY ordered_at DESC", params
             ).fetchall()]
-        except:
+        except Exception:
             rows = []
         conn.close()
         return rows
 
 
 @app.get("/api/workflow/views/발주목록")
-def view_po_list():
+def view_po_list(year_month: str = Query("")):
     """발주목록 view: orders in 발주중 or 입고완료 state."""
     if is_supabase():
-        return _sq("orders").select("*").in_("state", ["발주중", "입고완료"]).order("po_issued_at", desc=True).execute().data
+        q = _sq("orders").select("*").in_("state", ["발주중", "입고완료"])
+        if year_month:
+            q = q.eq("year_month", year_month)
+        return q.order("po_issued_at", desc=True).execute().data
     else:
         conn = get_sqlite()
+        w = "state IN ('발주중','입고완료')"
+        params = []
+        if year_month:
+            w += " AND year_month = ?"
+            params.append(year_month)
         try:
             rows = [dict(r) for r in conn.execute(
-                "SELECT * FROM orders WHERE state IN ('발주중','입고완료') ORDER BY po_issued_at DESC"
+                f"SELECT * FROM orders WHERE {w} ORDER BY po_issued_at DESC", params
             ).fetchall()]
-        except:
+        except Exception:
             rows = []
         conn.close()
         return rows
 
 
 @app.get("/api/workflow/views/매입내역")
-def view_purchases():
+def view_purchases(year_month: str = Query("")):
     """매입내역 view: orders with revenue/cost/profit."""
     if is_supabase():
-        return _sq("orders").select("*").in_("state", ["입고완료", "출고완료", "정산완료"]).order("received_at", desc=True).execute().data
+        q = _sq("orders").select("*").in_("state", ["입고완료", "출고완료", "정산완료"])
+        if year_month:
+            q = q.eq("year_month", year_month)
+        return q.order("received_at", desc=True).execute().data
     else:
         conn = get_sqlite()
+        w = "state IN ('입고완료','출고완료','정산완료')"
+        params = []
+        if year_month:
+            w += " AND year_month = ?"
+            params.append(year_month)
         try:
             rows = [dict(r) for r in conn.execute(
-                "SELECT * FROM orders WHERE state IN ('입고완료','출고완료','정산완료') ORDER BY received_at DESC"
+                f"SELECT * FROM orders WHERE {w} ORDER BY received_at DESC", params
             ).fetchall()]
-        except:
+        except Exception:
             rows = []
         conn.close()
         return rows
@@ -1002,7 +1122,7 @@ def list_workflow_orders(state: str = Query(""), q: str = Query("")):
             query = query.eq("state", state)
         if q:
             query = query.or_(f"spec_text.ilike.%{q}%,customer_name.ilike.%{q}%")
-        return query.order("created_at", desc=True).limit(200).execute().data
+        return query.order("created_at", desc=True).limit(1000).execute().data
     else:
         conn = get_sqlite()
         conds = ["state IS NOT NULL"]
@@ -1018,7 +1138,7 @@ def list_workflow_orders(state: str = Query(""), q: str = Query("")):
             rows = [dict(r) for r in conn.execute(
                 f"SELECT * FROM orders WHERE {w} ORDER BY created_at DESC LIMIT 200", params
             ).fetchall()]
-        except:
+        except Exception:
             rows = []
         conn.close()
         return rows
@@ -1126,7 +1246,7 @@ def get_inventory(q: str = Query("")):
                 rows = [dict(r) for r in conn.execute(
                     "SELECT * FROM erp_inventory ORDER BY product_type, pressure_class, size_value"
                 ).fetchall()]
-        except:
+        except Exception:
             rows = []
         conn.close()
         return rows
@@ -1219,6 +1339,63 @@ def download_pdf(order_id: int, doc_type: str):
     )
 
 
+@app.get("/api/workflow/orders/{order_id}/xlsx/견적서")
+def download_quotation_xlsx(order_id: int):
+    """Download editable .xlsx quotation using the 견적문의서 template."""
+    import openpyxl, copy, shutil
+    from urllib.parse import quote as url_quote
+    from datetime import datetime as dt
+
+    order = _get_workflow_order(order_id)
+
+    # Copy template
+    template_path = os.path.join(BASE_DIR, "templates", "견적문의서.xlsx")
+    if not os.path.exists(template_path):
+        # Fallback: try Desktop
+        template_path = os.path.expanduser("~/Desktop/견적문의서.xlsx")
+    if not os.path.exists(template_path):
+        raise HTTPException(404, "견적문의서 템플릿 파일을 찾을 수 없습니다")
+
+    wb = openpyxl.load_workbook(template_path)
+    ws = wb.active
+
+    # Fill in data
+    # A3: date
+    ws["A3"] = dt.now().strftime("%Y-%m-%d")
+
+    # A7: 견적번호
+    quote_num = f"MSM-Q-{order_id}"
+    ws["A7"] = f" 견적번호 : {quote_num}"
+
+    # B4: customer (channel/distributor)
+    ws["B4"] = order.get("customer_name") or ""
+
+    # Item rows start at row 16
+    spec = order.get("spec_text") or ""
+    qty = order.get("quantity") or 1
+    price = order.get("unit_price") or 0
+
+    # Row 16: first item
+    ws.cell(row=16, column=3, value=spec)    # C16: Description
+    ws.cell(row=16, column=7, value=qty)     # G16: Qty
+    ws.cell(row=16, column=8, value=price)   # H16: Unit Price
+    # I16 already has formula =G16*H16
+
+    # C18: MAKER (keep default 한국밸브 or set from order)
+    manufacturer = order.get("manufacturer") or "한국밸브"
+    ws["C18"] = f"MAKER : {manufacturer}"
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    fn = f"견적서_{quote_num}.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{url_quote(fn)}"},
+    )
+
+
 class BatchInvoiceRequest(BaseModel):
     order_ids: list[int]
 
@@ -1267,7 +1444,7 @@ def view_invoice_verification(year_month: str = Query("")):
                 f"SELECT id, customer_name, spec_text, cost, manufacturer_invoice_number, manufacturer_invoice_amount, manufacturer, state FROM orders WHERE {w} ORDER BY received_at DESC",
                 params
             ).fetchall()]
-        except:
+        except Exception:
             rows = []
         conn.close()
 
@@ -1283,6 +1460,106 @@ def view_invoice_verification(year_month: str = Query("")):
             r["difference"] = None
 
     return rows
+
+
+# ============================================================
+# API: Workflow View Excel Download
+# ============================================================
+
+VIEW_COLUMNS = {
+    "수주대장": [
+        ("상태", "state"), ("고객", "customer_name"), ("사양", "spec_text"),
+        ("수량", "quantity"), ("단가", "unit_price"), ("매출", "revenue"),
+        ("수주일", "ordered_at"), ("출고일", "shipped_at"),
+    ],
+    "발주목록": [
+        ("상태", "state"), ("고객", "customer_name"), ("사양", "spec_text"),
+        ("발주처", "manufacturer"), ("수량", "quantity"), ("매입", "cost"),
+        ("발주일", "po_issued_at"), ("납기", "requested_delivery_at"),
+    ],
+    "매입내역": [
+        ("상태", "state"), ("고객", "customer_name"), ("사양", "spec_text"),
+        ("매출", "revenue"), ("매입", "cost"), ("이익", "profit"),
+        ("입고일", "received_at"),
+    ],
+    "거래명세검증": [
+        ("고객", "customer_name"), ("사양", "spec_text"),
+        ("발주금액", "cost"), ("거래명세번호", "manufacturer_invoice_number"),
+        ("거래명세금액", "manufacturer_invoice_amount"), ("매칭", "match_status"),
+    ],
+}
+
+
+@app.get("/api/workflow/views/{view_name}/download")
+def download_view_excel(view_name: str, year_month: str = Query("")):
+    """Download a workflow view as Excel."""
+    import openpyxl
+    from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+    from urllib.parse import quote as url_quote
+
+    cols = VIEW_COLUMNS.get(view_name)
+    if not cols:
+        raise HTTPException(400, f"Unknown view: {view_name}")
+
+    # Reuse existing view endpoints to get data
+    if view_name == "수주대장":
+        rows = view_order_book(year_month=year_month)
+    elif view_name == "발주목록":
+        rows = view_po_list(year_month=year_month)
+    elif view_name == "매입내역":
+        rows = view_purchases(year_month=year_month)
+    elif view_name == "거래명세검증":
+        rows = view_invoice_verification(year_month=year_month)
+    else:
+        rows = []
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    month_label = f"{year_month}" if year_month else "전체"
+    ws.title = month_label
+    thin = Border(left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
+    hf = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
+
+    title = f"{view_name} — {month_label}"
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(cols))
+    ws["A1"] = title
+    ws["A1"].font = Font(bold=True, size=13)
+    ws["A1"].alignment = Alignment(horizontal="center")
+
+    # Headers
+    for i, (label, _) in enumerate(cols, 1):
+        c = ws.cell(row=3, column=i, value=label)
+        c.font = Font(bold=True, size=9)
+        c.fill = hf
+        c.border = thin
+        c.alignment = Alignment(horizontal="center", vertical="center")
+
+    # Data
+    num_fields = {"unit_price", "revenue", "cost", "profit", "quantity",
+                  "manufacturer_invoice_amount"}
+    for ri, row in enumerate(rows, 4):
+        for ci, (_, key) in enumerate(cols, 1):
+            val = row.get(key)
+            if isinstance(val, str) and len(val) > 10 and "T" in val:
+                val = val[:10]  # trim datetime to date
+            c = ws.cell(row=ri, column=ci, value=val)
+            c.border = thin
+            if key in num_fields and isinstance(val, (int, float)):
+                c.number_format = "#,##0"
+
+    # Auto-width
+    for i in range(1, len(cols) + 1):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = 15
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    fn = f"{view_name}_{month_label}.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{url_quote(fn)}"},
+    )
 
 
 # ============================================================
@@ -1317,7 +1594,7 @@ def run_settlement(req: SettlementRequest):
                 ids = [o["id"] for o in orders]
                 conn.execute(f"UPDATE orders SET state='정산완료' WHERE id IN ({','.join('?' * len(ids))})", ids)
                 conn.commit()
-        except:
+        except Exception:
             orders = []
         conn.close()
 
@@ -1357,7 +1634,7 @@ def download_settlement_excel(year_month: str = Query("")):
                 "SELECT * FROM orders WHERE year_month=? AND state IN ('출고완료','정산완료') ORDER BY id",
                 (year_month,)
             ).fetchall()]
-        except:
+        except Exception:
             orders = []
         conn.close()
 
@@ -1442,6 +1719,7 @@ def delete_workflow_order(order_id: int):
             raise HTTPException(404, "Order not found")
         if r.data[0]["state"] not in ("견적", "취소"):
             raise HTTPException(400, "확정된 거래는 삭제할 수 없습니다. 취소 처리 후 삭제하세요.")
+        _sq("order_items").delete().eq("order_id", order_id).execute()
         _sq("orders").delete().eq("id", order_id).execute()
     else:
         conn = get_sqlite()
@@ -1452,6 +1730,7 @@ def delete_workflow_order(order_id: int):
         if row["state"] not in ("견적", "취소"):
             conn.close()
             raise HTTPException(400, "확정된 거래는 삭제할 수 없습니다.")
+        conn.execute("DELETE FROM order_items WHERE order_id=?", (order_id,))
         conn.execute("DELETE FROM orders WHERE id=?", (order_id,))
         conn.commit()
         conn.close()
@@ -1487,7 +1766,7 @@ def _run_sqlite_migration(conn):
     for sql in migrations:
         try:
             conn.execute(sql)
-        except:
+        except Exception:
             pass  # Column already exists
     conn.commit()
     _migration_done = True

@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MSM</title>
+<style>
+:root {
+  --navy: #1a237e;
+  --navy-light: #e8eaf6;
+  --green: #2e7d32;
+  --red: #c62828;
+  --amber: #e65100;
+  --text: #1a1a1a;
+  --text2: #666;
+  --text3: #999;
+  --bg: #fafafa;
+  --card: #fff;
+  --border: #e8e8e8;
+  --ease: cubic-bezier(0.23, 1, 0.32, 1);
+  --r: 10px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, 'Malgun Gothic', sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+
+/* ── Header ── */
+.hd { background: var(--navy); color: white; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; }
+.hd h1 { font-size: 15px; font-weight: 600; cursor: pointer; letter-spacing: -0.3px; }
+.hd-links { display: flex; gap: 6px; }
+.hd-links a { color: rgba(255,255,255,0.7); font-size: 12px; text-decoration: none; padding: 4px 10px; border-radius: 6px; transition: color 160ms ease; }
+.hd-links a:hover { color: white; }
+
+/* ── Screen container ── */
+.scr { display: none; max-width: 520px; margin: 0 auto; padding: 40px 20px; }
+.scr.active { display: block; animation: fadeUp 200ms var(--ease) both; }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ── Home ── */
+.home-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 28px; }
+.home-card { background: var(--card); border-radius: var(--r); padding: 28px 20px; text-align: center; cursor: pointer;
+  border: 1.5px solid var(--border); transition: transform 200ms var(--ease), border-color 200ms var(--ease), box-shadow 200ms var(--ease); }
+.home-card:hover { border-color: var(--navy); transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+.home-card:active { transform: scale(0.97); }
+.home-card .hc-title { font-size: 15px; font-weight: 700; color: var(--navy); }
+.home-card .hc-desc { font-size: 12px; color: var(--text3); margin-top: 6px; line-height: 1.4; }
+.home-sub { display: flex; gap: 8px; justify-content: center; }
+.home-sub a { font-size: 12px; color: var(--text2); text-decoration: none; padding: 6px 14px; border-radius: 6px; background: var(--card); border: 1px solid var(--border); transition: background 160ms ease; }
+.home-sub a:hover { background: var(--navy-light); }
+.alert { margin-top: 20px; padding: 10px 16px; border-radius: var(--r); background: #fff8e1; font-size: 12px; color: var(--amber); text-align: center; border: 1px solid #ffe0b2; }
+
+/* ── Steps ── */
+.steps { display: flex; align-items: center; justify-content: center; gap: 0; margin-bottom: 28px; }
+.st { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text3); font-weight: 500; }
+.st.active { color: var(--navy); font-weight: 700; }
+.st.done { color: var(--green); }
+.st-dot { width: 22px; height: 22px; border-radius: 50%; background: var(--border); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: white; }
+.st.active .st-dot { background: var(--navy); }
+.st.done .st-dot { background: var(--green); }
+.st-line { width: 32px; height: 1.5px; background: var(--border); margin: 0 6px; }
+
+/* ── Card ── */
+.cd { background: var(--card); border-radius: var(--r); padding: 24px; border: 1px solid var(--border); margin-bottom: 14px; }
+.cd h2 { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 16px; letter-spacing: -0.3px; }
+
+/* ── Fields ── */
+.f { margin-bottom: 14px; }
+.f label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 4px; font-weight: 500; }
+.f input, .f select, .f textarea { width: 100%; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 14px; font-family: inherit; background: var(--card); transition: border-color 160ms ease, box-shadow 160ms ease; }
+.f input:focus, .f select:focus, .f textarea:focus { outline: none; border-color: var(--navy); box-shadow: 0 0 0 3px rgba(26,35,126,0.08); }
+.f textarea { resize: vertical; min-height: 56px; }
+.fr { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.fr3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+/* ── Buttons ── */
+.btn { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; font-family: inherit;
+  transition: transform 160ms var(--ease), background 160ms ease, opacity 160ms ease; }
+.btn:active { transform: scale(0.97); }
+.btn-p { background: var(--navy); color: white; }
+.btn-p:hover { background: #283593; }
+.btn-s { background: var(--green); color: white; }
+.btn-s:hover { background: #388e3c; }
+.btn-o { background: var(--card); border: 1.5px solid var(--border); color: var(--text); }
+.btn-o:hover { background: #f5f5f5; }
+.btn-lg { padding: 12px 24px; font-size: 14px; }
+.btn-block { display: block; width: 100%; }
+.btn-row { display: flex; gap: 8px; margin-top: 16px; }
+
+/* ── Tags ── */
+.tags { display: flex; gap: 4px; flex-wrap: wrap; margin: 8px 0; }
+.tag { padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+.t-ok { background: #e8f5e9; color: var(--green); }
+.t-miss { background: #fce4ec; color: var(--red); }
+.t-warn { background: #fff3e0; color: var(--amber); }
+
+/* ── Price ── */
+.price { padding: 16px; border-radius: var(--r); margin: 12px 0; border-left: 3px solid var(--green); background: #f8fdf8; }
+.price.rfq { border-left-color: var(--amber); background: #fffcf5; }
+.price .pv { font-size: 22px; font-weight: 800; color: var(--navy); letter-spacing: -0.5px; }
+.price .ps { font-size: 12px; color: var(--text3); margin-top: 2px; }
+
+/* ── Result ── */
+.result { padding: 20px; border-radius: var(--r); margin: 12px 0; text-align: center; border: 1px solid var(--border); }
+.result.ok { border-left: 3px solid var(--green); }
+.result.warn { border-left: 3px solid var(--amber); }
+.result .r-title { font-size: 15px; font-weight: 700; color: var(--text); }
+.result .r-desc { font-size: 13px; color: var(--text2); margin-top: 4px; }
+
+/* ── Quote cards ── */
+.qlist { display: flex; flex-direction: column; gap: 8px; max-height: 260px; overflow-y: auto; }
+.qcard { padding: 12px 14px; background: var(--bg); border: 1.5px solid var(--border); border-radius: 8px; cursor: pointer;
+  transition: border-color 160ms var(--ease), background 160ms ease; }
+.qcard:hover { border-color: var(--navy); }
+.qcard:active { transform: scale(0.98); }
+.qcard.sel { border-color: var(--navy); background: var(--navy-light); }
+.qcard .q-spec { font-family: monospace; font-size: 12px; color: var(--text); }
+.qcard .q-info { font-size: 11px; color: var(--text3); margin-top: 3px; }
+
+/* ── Amounts ── */
+.amt-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; color: var(--text2); }
+.amt-row + .amt-row { border-top: 1px solid #f0f0f0; }
+.amt-row:last-child { font-weight: 700; font-size: 14px; color: var(--navy); padding-top: 8px; border-top: 1.5px solid var(--border); }
+
+/* ── Checklist ── */
+.cklist { list-style: none; padding: 0; }
+.cklist li { padding: 8px 0; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text2); }
+.cklist li::before { content: '\2713'; color: var(--green); font-weight: 700; }
+
+/* ── Spec box ── */
+.spec { background: #f5f5f5; padding: 10px 14px; border-radius: 8px; font-family: monospace; font-size: 13px; margin: 8px 0; word-break: break-all; color: var(--text); }
+
+/* ── Misc ── */
+.back { display: inline-flex; align-items: center; gap: 4px; margin-bottom: 20px; color: var(--text3); font-size: 12px; cursor: pointer; text-decoration: none; transition: color 160ms ease; }
+.back:hover { color: var(--navy); }
+.divider { text-align: center; margin: 16px 0; color: var(--text3); font-size: 11px; }
+.loading { text-align: center; padding: 20px; color: var(--text3); }
+
+/* ── Toast ── */
+.toast-c { position: fixed; bottom: 20px; right: 20px; z-index: 200; display: flex; flex-direction: column; gap: 6px; }
+.toast { padding: 10px 16px; border-radius: 8px; color: white; font-size: 12px; font-weight: 500;
+  transform: translateY(0); opacity: 1; transition: transform 300ms var(--ease), opacity 300ms ease; }
+.toast.out { transform: translateY(8px); opacity: 0; }
+.toast-ok { background: var(--green); }
+.toast-err { background: var(--red); }
+
+@media (max-width: 600px) {
+  .home-grid { grid-template-columns: 1fr; }
+  .fr, .fr3 { grid-template-columns: 1fr; }
+  .scr { padding: 24px 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scr.active { animation: none; }
+  .toast { transition: opacity 100ms ease; }
+}
+</style>
+</head>
+<body>
+
+<div class="hd">
+  <h1 onclick="navigate('#home')">MSM</h1>
+  <div class="hd-links">
+    <a href="/">수주대장</a>
+    <a href="/flow#home">홈</a>
+    <a href="#" onclick="event.preventDefault();logout()">로그아웃</a>
+  </div>
+</div>
+
+<!-- HOME -->
+<section class="scr" id="screen-home">
+  <div class="home-grid">
+    <div class="home-card" onclick="navigate('#quote/1')">
+      <div class="hc-title">견적 단계</div>
+      <div class="hc-desc">사양 검색 &rarr; 단가 확정 &rarr; 견적서</div>
+    </div>
+    <div class="home-card" onclick="navigate('#deal/1')">
+      <div class="hc-title">거래 진행</div>
+      <div class="hc-desc">수주 등록 &rarr; 발주 &rarr; 입고 &rarr; 출고</div>
+    </div>
+  </div>
+  <div class="home-sub">
+    <a href="/">수주대장</a><a href="/">발주목록</a><a href="/">매입내역</a>
+  </div>
+  <div id="alertBanner" class="alert" style="display:none;"></div>
+</section>
+
+<!-- QUOTE 1: 사양 검색 -->
+<section class="scr" id="screen-quote-1">
+  <span class="back" onclick="navigate('#home')">&larr; 홈</span>
+  <div class="steps">
+    <div class="st active"><div class="st-dot">1</div>사양 검색</div><div class="st-line"></div>
+    <div class="st"><div class="st-dot">2</div>가격 결정</div><div class="st-line"></div>
+    <div class="st"><div class="st-dot">3</div>견적서</div>
+  </div>
+  <div class="cd">
+    <h2>사양 검색</h2>
+    <div class="f"><label>사양 (이메일에서 복붙)</label>
+      <textarea id="q1Spec" placeholder='GATE WCB/13CR+HF 300# BW GEAR 12"'></textarea></div>
+    <div class="fr3">
+      <div class="f"><label>고객사</label><input type="text" id="q1Customer" placeholder="고객사명"></div>
+      <div class="f"><label>수량</label><input type="number" id="q1Qty" value="1" min="1"></div>
+      <div class="f"><label>할인율</label>
+        <select id="q1Discount">
+          <option value="-40%">-40%</option><option value="-41%">-41%</option><option value="-42%">-42%</option>
+          <option value="-43%">-43%</option><option value="-44%">-44%</option><option value="-45%">-45%</option>
+          <option value="-46%">-46%</option><option value="-47%">-47%</option><option value="-48%">-48%</option>
+          <option value="-49%">-49%</option><option value="-50%">-50%</option><option value="-51%">-51%</option>
+          <option value="-52%">-52%</option><option value="-53%">-53%</option><option value="-54%">-54%</option>
+          <option value="-55%">-55%</option><option value="-56%">-56%</option>
+        </select></div>
+    </div>
+    <div id="q1Tags" class="tags"></div>
+    <div id="q1Result"></div>
+    <button class="btn btn-p btn-lg btn-block" onclick="searchSpec()" style="margin-top:12px;">조회</button>
+  </div>
+</section>
+
+<!-- QUOTE 2-A: 협가표 매핑 -->
+<section class="scr" id="screen-quote-2a">
+  <span class="back" onclick="navigate('#quote/1')">&larr; 사양 검색</span>
+  <div class="steps">
+    <div class="st done"><div class="st-dot">1</div></div><div class="st-line"></div>
+    <div class="st active"><div class="st-dot">2</div>가격 결정</div><div class="st-line"></div>
+    <div class="st"><div class="st-dot">3</div>견적서</div>
+  </div>
+  <div class="cd">
+    <h2>단가 확정</h2>
+    <div id="q2aSpec" class="spec"></div>
+    <div id="q2aTags" class="tags"></div>
+    <div class="fr3">
+      <div class="f"><label>기준 단가</label><input type="text" id="q2aBase" readonly style="background:#f5f5f5;font-weight:600;"></div>
+      <div class="f"><label>할인율</label>
+        <select id="q2aDiscount" onchange="recalc()">
+          <option value="-40%">-40%</option><option value="-41%">-41%</option><option value="-42%">-42%</option>
+          <option value="-43%">-43%</option><option value="-44%">-44%</option><option value="-45%">-45%</option>
+          <option value="-46%">-46%</option><option value="-47%">-47%</option><option value="-48%">-48%</option>
+          <option value="-49%">-49%</option><option value="-50%">-50%</option><option value="-51%">-51%</option>
+          <option value="-52%">-52%</option><option value="-53%">-53%</option><option value="-54%">-54%</option>
+          <option value="-55%">-55%</option><option value="-56%">-56%</option>
+        </select></div>
+      <div class="f"><label>수량</label><input type="number" id="q2aQty" value="1" min="1" onchange="recalc()"></div>
+    </div>
+    <div class="f"><label>단가 수동 입력 (선택)</label><input type="text" id="q2aManual" placeholder="비워두면 협가표 단가" oninput="recalc()"></div>
+    <div id="q2aCalc"></div>
+    <button class="btn btn-p btn-lg btn-block" onclick="confirmPrice()" style="margin-top:12px;">단가 확정 &rarr; 견적서</button>
+  </div>
+</section>
+
+<!-- QUOTE 2-B: RFQ -->
+<section class="scr" id="screen-quote-2b">
+  <span class="back" onclick="navigate('#quote/1')">&larr; 사양 검색</span>
+  <div class="steps">
+    <div class="st done"><div class="st-dot">1</div></div><div class="st-line"></div>
+    <div class="st active"><div class="st-dot">2</div>RFQ</div><div class="st-line"></div>
+    <div class="st"><div class="st-dot">3</div>견적서</div>
+  </div>
+  <div class="cd">
+    <h2>제조사 견적 요청</h2>
+    <div id="q2bSpec" class="spec"></div>
+    <div class="result warn">
+      <div class="r-title">협가표 미매칭</div>
+      <div class="r-desc">기본 사양을 벗어나 제조사 별도 견적이 필요합니다</div>
+    </div>
+    <div id="q2bReasons" class="tags"></div>
+    <div class="f" style="margin-top:16px;"><label>제조사 회신 단가</label><input type="text" id="q2bPrice" placeholder="회신 후 입력"></div>
+    <div class="f"><label>수량</label><input type="number" id="q2bQty" value="1" min="1"></div>
+    <div class="btn-row">
+      <button class="btn btn-o" onclick="saveRFQ()">임시 저장</button>
+      <button class="btn btn-p btn-lg" onclick="confirmRFQ()" style="flex:1;">단가 확정 &rarr; 견적서</button>
+    </div>
+  </div>
+</section>
+
+<!-- QUOTE 3: 견적서 -->
+<section class="scr" id="screen-quote-3">
+  <div class="steps">
+    <div class="st done"><div class="st-dot">1</div></div><div class="st-line"></div>
+    <div class="st done"><div class="st-dot">2</div></div><div class="st-line"></div>
+    <div class="st active"><div class="st-dot">3</div>견적서</div>
+  </div>
+  <div class="cd" style="text-align:center;">
+    <div class="result ok">
+      <div class="r-title">견적 등록 완료</div>
+      <div id="q3Sum" class="r-desc"></div>
+    </div>
+    <div id="q3Amt" style="max-width:280px;margin:16px auto;"></div>
+    <div class="btn-row" style="justify-content:center;">
+      <button class="btn btn-p" id="q3Pdf">견적서 Excel</button>
+      <button class="btn btn-s" onclick="navigate('#deal/1')">거래 진행 &rarr;</button>
+      <button class="btn btn-o" onclick="navigate('#home')">홈</button>
+    </div>
+  </div>
+</section>
+
+<!-- DEAL 1: 수주 작성 -->
+<section class="scr" id="screen-deal-1">
+  <span class="back" onclick="navigate('#home')">&larr; 홈</span>
+  <div class="steps">
+    <div class="st active"><div class="st-dot">1</div>수주</div><div class="st-line"></div>
+    <div class="st"><div class="st-dot">2</div>재고</div><div class="st-line"></div>
+    <div class="st"><div class="st-dot">3</div>발주/출고</div><div class="st-line"></div>
+    <div class="st"><div class="st-dot">4</div>완료</div>
+  </div>
+  <div class="cd">
+    <h2>수주 작성</h2>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">기존 견적 선택</div>
+    <div id="d1List" class="qlist"><div class="loading">불러오는 중...</div></div>
+    <div class="divider">또는 직거래</div>
+    <div class="f"><label>사양</label><textarea id="d1Spec" placeholder="사양 직접 입력"></textarea></div>
+    <div class="fr">
+      <div class="f"><label>고객사</label><input type="text" id="d1Cust"></div>
+      <div class="f"><label>수량</label><input type="number" id="d1Qty" value="1" min="1"></div>
+    </div>
+    <div class="fr">
+      <div class="f"><label>단가</label><input type="text" id="d1Price" placeholder="단가"></div>
+      <div class="f"><label>수주일</label><input type="date" id="d1Date"></div>
+    </div>
+    <button class="btn btn-p btn-lg btn-block" onclick="confirmDeal()" style="margin-top:8px;">수주 확정</button>
+  </div>
+</section>
+
+<!-- DEAL 2: 재고 체크 -->
+<section class="scr" id="screen-deal-2">
+  <div class="steps">
+    <div class="st done"><div class="st-dot">1</div></div><div class="st-line"></div>
+    <div class="st active"><div class="st-dot">2</div>재고</div><div class="st-line"></div>
+    <div class="st"><div class="st-dot">3</div>발주/출고</div><div class="st-line"></div>
+    <div class="st"><div class="st-dot">4</div>완료</div>
+  </div>
+  <div class="cd" id="d2Body"><div class="loading">재고 확인 중...</div></div>
+</section>
+
+<!-- DEAL 3-A: 재고 출고 -->
+<section class="scr" id="screen-deal-3a">
+  <div class="steps">
+    <div class="st done"><div class="st-dot">1</div></div><div class="st-line"></div>
+    <div class="st done"><div class="st-dot">2</div></div><div class="st-line"></div>
+    <div class="st active"><div class="st-dot">3</div>출고</div><div class="st-line"></div>
+    <div class="st"><div class="st-dot">4</div>완료</div>
+  </div>
+  <div class="cd" style="text-align:center;">
+    <div class="result ok"><div class="r-title">재고 확인됨</div><div id="d3aInfo" class="r-desc"></div></div>
+    <button class="btn btn-s btn-lg" onclick="shipStock()" style="margin-top:16px;">출고 확정</button>
+  </div>
+</section>
+
+<!-- DEAL 3-B-1: 제조사 발주 -->
+<section class="scr" id="screen-deal-3b1">
+  <div class="steps">
+    <div class="st done"><div class="st-dot">1</div></div><div class="st-line"></div>
+    <div class="st done"><div class="st-dot">2</div></div><div class="st-line"></div>
+    <div class="st active"><div class="st-dot">3</div>발주</div><div class="st-line"></div>
+    <div class="st"><div class="st-dot">4</div>완료</div>
+  </div>
+  <div class="cd">
+    <h2>제조사 발주</h2>
+    <div id="d3b1Spec" class="spec"></div>
+    <div class="fr">
+      <div class="f"><label>발주처</label><input type="text" id="d3b1Mfr" value="한국밸브"></div>
+      <div class="f"><label>매입 단가 (VAT제외)</label><input type="text" id="d3b1Cost" placeholder="숫자"></div>
+    </div>
+    <div class="f"><label>요청 납기</label><input type="date" id="d3b1Del"></div>
+    <button class="btn btn-p btn-lg btn-block" onclick="issuePO()" style="margin-top:8px;">발주 완료</button>
+  </div>
+</section>
+
+<!-- DEAL 3-B-2: 입고 체크 -->
+<section class="scr" id="screen-deal-3b2">
+  <div class="steps">
+    <div class="st done"><div class="st-dot">1</div></div><div class="st-line"></div>
+    <div class="st done"><div class="st-dot">2</div></div><div class="st-line"></div>
+    <div class="st active"><div class="st-dot">3</div>입고</div><div class="st-line"></div>
+    <div class="st"><div class="st-dot">4</div>완료</div>
+  </div>
+  <div class="cd">
+    <h2>입고 체크</h2>
+    <div id="d3b2Spec" class="spec"></div>
+    <div class="f"><label>거래명세 번호</label><input type="text" id="d3b2No"></div>
+    <div class="f"><label>거래명세 금액 (VAT제외)</label><input type="text" id="d3b2Amt" placeholder="숫자"></div>
+    <button class="btn btn-p btn-lg btn-block" onclick="receiveGoods()" style="margin-top:8px;">입고 확인</button>
+  </div>
+</section>
+
+<!-- DEAL 3-B-3: 고객 출고 -->
+<section class="scr" id="screen-deal-3b3">
+  <div class="steps">
+    <div class="st done"><div class="st-dot">1</div></div><div class="st-line"></div>
+    <div class="st done"><div class="st-dot">2</div></div><div class="st-line"></div>
+    <div class="st active"><div class="st-dot">3</div>출고</div><div class="st-line"></div>
+    <div class="st"><div class="st-dot">4</div>완료</div>
+  </div>
+  <div class="cd" style="text-align:center;">
+    <h2>고객 출고</h2>
+    <div id="d3b3Info" class="r-desc" style="margin-bottom:16px;"></div>
+    <button class="btn btn-s btn-lg" onclick="shipCustomer()">출고 확정</button>
+  </div>
+</section>
+
+<!-- DEAL 4: 완료 -->
+<section class="scr" id="screen-deal-4">
+  <div class="cd" style="text-align:center;">
+    <div class="result ok" style="margin-bottom:16px;">
+      <div class="r-title">출고 완료</div>
+      <div id="d4Info" class="r-desc"></div>
+    </div>
+    <ul class="cklist" style="text-align:left;max-width:300px;margin:0 auto 16px;">
+      <li>수주대장 반영</li><li>발주목록 반영</li><li>매입내역 갱신</li>
+    </ul>
+    <div class="btn-row" style="justify-content:center;">
+      <button class="btn btn-o" id="d4Pdf1">거래명세표</button>
+      <button class="btn btn-o" id="d4Pdf2">견적서</button>
+      <button class="btn btn-p" onclick="navigate('#home')">홈으로</button>
+    </div>
+  </div>
+</section>
+
+<div class="toast-c" id="toastC"></div>
+
+<script>
+const F={specText:'',parsed:null,priceResult:null,discountRate:'-40%',quantity:1,unitPrice:null,customerName:'',orderId:null,selectedQuoteId:null};
+function fmt(n){return n!=null&&n!==''?Number(n).toLocaleString():'';}
+function esc(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'):'';}
+async function api(u,o){return(await fetch(u,o)).json();}
+function toast(m,t='ok'){const c=document.getElementById('toastC'),e=document.createElement('div');e.className=`toast toast-${t}`;e.textContent=m;c.appendChild(e);setTimeout(()=>{e.classList.add('out');setTimeout(()=>e.remove(),300);},2500);}
+async function logout(){await fetch('/api/logout',{method:'POST'});location.reload();}
+
+// Router
+function navigate(h){
+  location.hash=h;
+  document.querySelectorAll('.scr').forEach(s=>s.classList.remove('active'));
+  const id='screen-'+h.replace('#','').replace(/\//g,'-');
+  const el=document.getElementById(id);
+  if(el){el.classList.add('active');}
+  window.scrollTo(0,0);
+  if(h==='#home')loadAlerts();
+  if(h==='#deal/1')loadQuotes();
+}
+window.addEventListener('hashchange',()=>navigate(location.hash));
+window.addEventListener('DOMContentLoaded',()=>navigate(location.hash||'#home'));
+
+async function loadAlerts(){
+  try{const a=await api('/api/workflow/alerts');const el=document.getElementById('alertBanner');
+  if(a.pending_receive>0){el.style.display='';el.textContent=`입고 대기 ${a.pending_receive}건`;}else el.style.display='none';}catch(e){}}
+
+// === FLOW A ===
+async function searchSpec(){
+  const spec=document.getElementById('q1Spec').value.trim();
+  if(!spec){toast('사양을 입력하세요','err');return;}
+  F.specText=spec;F.customerName=document.getElementById('q1Customer').value.trim();
+  F.quantity=parseInt(document.getElementById('q1Qty').value)||1;F.discountRate=document.getElementById('q1Discount').value;
+  const d=await api('/api/search?'+new URLSearchParams({q:spec,discount:F.discountRate}));
+  F.parsed=d.parsed;F.priceResult=d;
+  let tags='';const p=d.parsed;
+  for(const[k,l]of[['product_type','제품군'],['pressure_raw','압력'],['size_a','사이즈'],['discount_rate','할인율']]){
+    const v=p[k];tags+=v?`<span class="tag t-ok">${l}: ${v}</span>`:`<span class="tag t-miss">${l}: -</span>`;}
+  if(p.rfq_required)tags+=`<span class="tag t-warn">RFQ 필요</span>`;
+  document.getElementById('q1Tags').innerHTML=tags;
+  if(d.status==='exact'||d.status==='multiple'){
+    F.unitPrice=d.results[0].unit_price;
+    document.getElementById('q1Result').innerHTML=`<div class="price"><div class="pv">${fmt(F.unitPrice)} KRW</div><div class="ps">${d.status==='exact'?'협가표 매핑':'복수 매칭 (첫 번째)'}</div></div>`;
+    setTimeout(()=>{document.getElementById('q2aSpec').textContent=spec;document.getElementById('q2aTags').innerHTML=tags;
+      document.getElementById('q2aBase').value=fmt(F.unitPrice);document.getElementById('q2aDiscount').value=F.discountRate;
+      document.getElementById('q2aQty').value=F.quantity;recalc();navigate('#quote/2a');},500);
+  }else{
+    document.getElementById('q1Result').innerHTML=`<div class="price rfq"><div class="pv">RFQ 필요</div><div class="ps">제조사 별도 견적 필요</div></div>`;
+    setTimeout(()=>{document.getElementById('q2bSpec').textContent=spec;document.getElementById('q2bQty').value=F.quantity;
+      let r='';if(p.rfq_reasons)p.rfq_reasons.forEach(x=>r+=`<span class="tag t-warn">${x}</span>`);
+      document.getElementById('q2bReasons').innerHTML=r;navigate('#quote/2b');},500);
+  }
+}
+
+function recalc(){
+  const m=document.getElementById('q2aManual').value.replace(/,/g,'');
+  const p=m?parseInt(m):F.unitPrice;const q=parseInt(document.getElementById('q2aQty').value)||1;
+  const s=p*q,v=Math.round(s*0.1);
+  document.getElementById('q2aCalc').innerHTML=`<div class="amt-row"><span>공급가액</span><span>${fmt(s)}</span></div><div class="amt-row"><span>VAT (10%)</span><span>${fmt(v)}</span></div><div class="amt-row"><span>합계</span><span>${fmt(s+v)} KRW</span></div>`;
+}
+
+async function confirmPrice(){
+  const m=document.getElementById('q2aManual').value.replace(/,/g,'');const p=m?parseInt(m):F.unitPrice;
+  const q=parseInt(document.getElementById('q2aQty').value)||1;
+  const r=await api('/api/workflow/orders',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({spec_text:F.specText,customer_name:F.customerName||null,quantity:q,discount_rate:document.getElementById('q2aDiscount').value})});
+  if(r.ok){F.orderId=r.order.id;const s=p*q;
+    document.getElementById('q3Sum').textContent=`MSM-Q-${F.orderId} | ${F.customerName||'-'} | ${F.specText.slice(0,30)}`;
+    document.getElementById('q3Amt').innerHTML=`<div class="amt-row"><span>공급가액</span><span>${fmt(s)}</span></div><div class="amt-row"><span>VAT</span><span>${fmt(Math.round(s*.1))}</span></div><div class="amt-row"><span>합계</span><span>${fmt(s+Math.round(s*.1))}</span></div>`;
+    document.getElementById('q3Pdf').onclick=()=>window.open(`/api/workflow/orders/${F.orderId}/xlsx/견적서`);
+    navigate('#quote/3');}else toast('오류','err');
+}
+
+async function saveRFQ(){
+  const r=await api('/api/workflow/orders',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({spec_text:F.specText,customer_name:F.customerName||null,quantity:parseInt(document.getElementById('q2bQty').value)||1,note:'RFQ 대기중'})});
+  if(r.ok){F.orderId=r.order.id;toast('임시 저장 완료');}else toast('오류','err');
+}
+
+async function confirmRFQ(){
+  const p=parseInt(document.getElementById('q2bPrice').value.replace(/,/g,''));
+  if(!p){toast('회신 단가 입력','err');return;}const q=parseInt(document.getElementById('q2bQty').value)||1;F.unitPrice=p;
+  if(!F.orderId){const r=await api('/api/workflow/orders',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({spec_text:F.specText,customer_name:F.customerName||null,quantity:q})});if(r.ok)F.orderId=r.order.id;else{toast('오류','err');return;}}
+  const s=p*q;
+  document.getElementById('q3Sum').textContent=`MSM-Q-${F.orderId} | ${F.customerName||'-'}`;
+  document.getElementById('q3Amt').innerHTML=`<div class="amt-row"><span>공급가액</span><span>${fmt(s)}</span></div><div class="amt-row"><span>합계</span><span>${fmt(s+Math.round(s*.1))}</span></div>`;
+  document.getElementById('q3Pdf').onclick=()=>window.open(`/api/workflow/orders/${F.orderId}/xlsx/견적서`);
+  navigate('#quote/3');
+}
+
+// === FLOW B ===
+async function loadQuotes(){
+  const el=document.getElementById('d1List');
+  try{const o=await api('/api/workflow/orders?state=견적');
+    if(!o||!o.length){el.innerHTML='<div style="color:var(--text3);font-size:12px;text-align:center;padding:12px;">견적 없음</div>';return;}
+    el.innerHTML=o.map(x=>`<div class="qcard" onclick="selQuote(${x.id},this)"><div style="display:flex;justify-content:space-between;align-items:start;"><div class="q-spec">${esc(x.spec_text)}</div><span style="cursor:pointer;color:var(--text3);font-size:11px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);" onclick="event.stopPropagation();delQuote(${x.id})">삭제</span></div><div class="q-info">${esc(x.customer_name)||'-'} | ${x.quantity||1}EA | ${fmt(x.unit_price)} KRW</div></div>`).join('');
+  }catch(e){el.innerHTML='<div class="loading">불러오기 실패</div>';}
+  document.getElementById('d1Date').value=new Date().toISOString().slice(0,10);
+}
+function selQuote(id,el){document.querySelectorAll('.qcard').forEach(c=>c.classList.remove('sel'));el.classList.add('sel');F.selectedQuoteId=id;}
+async function delQuote(id){if(!confirm('이 견적을 삭제하시겠습니까?'))return;
+  await api(`/api/workflow/orders/${id}/delete`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+  toast('삭제 완료');loadQuotes();}
+
+async function confirmDeal(){
+  let oid=F.selectedQuoteId;
+  if(!oid){const spec=document.getElementById('d1Spec').value.trim();if(!spec){toast('사양 또는 견적 선택','err');return;}
+    const priceVal=document.getElementById('d1Price').value.replace(/,/g,'');
+    const payload={spec_text:spec,customer_name:document.getElementById('d1Cust').value.trim()||null,quantity:parseInt(document.getElementById('d1Qty').value)||1};
+    if(priceVal)payload.unit_price=parseInt(priceVal);
+    const r=await api('/api/workflow/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    if(!r.ok){toast('오류','err');return;}oid=r.order.id;}
+  F.orderId=oid;
+  const r=await api(`/api/workflow/orders/${oid}/confirm`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+  if(r.ok){const cd=document.getElementById('d2Body');
+    if(r.stock_available){cd.innerHTML=`<div class="result ok"><div class="r-title">재고품</div><div class="r-desc">재고 확인됨 — 바로 출고 가능</div></div><button class="btn btn-s btn-lg btn-block" onclick="navigate('#deal/3a')" style="margin-top:16px;">출고 &rarr;</button>`;}
+    else{cd.innerHTML=`<div class="result warn"><div class="r-title">제조품</div><div class="r-desc">재고 없음 — 제조사 발주 필요</div></div><button class="btn btn-p btn-lg btn-block" onclick="navigate('#deal/3b1')" style="margin-top:16px;">발주 &rarr;</button>`;}
+    navigate('#deal/2');}else toast('오류: '+(r.detail||''),'err');
+}
+
+async function shipStock(){const r=await api(`/api/workflow/orders/${F.orderId}/ship`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});if(r.ok){done();navigate('#deal/4');}else toast('오류','err');}
+
+async function issuePO(){
+  const r=await api(`/api/workflow/orders/${F.orderId}/issue-po`,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({manufacturer:document.getElementById('d3b1Mfr').value||'한국밸브',
+      cost_unit_price:(()=>{const v=document.getElementById('d3b1Cost').value;return v?parseInt(v.replace(/,/g,'')):null;})(),
+      requested_delivery_at:document.getElementById('d3b1Del').value||null})});
+  if(r.ok){toast('발주 완료');window.open(`/api/workflow/orders/${F.orderId}/pdf/발주서`);navigate('#deal/3b2');}else toast('오류','err');
+}
+
+async function receiveGoods(){
+  const amt=document.getElementById('d3b2Amt').value;
+  const r=await api(`/api/workflow/orders/${F.orderId}/receive`,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({manufacturer_invoice_number:document.getElementById('d3b2No').value||null,
+      manufacturer_invoice_amount:amt?parseInt(amt.replace(/,/g,'')):null})});
+  if(r.ok){toast(`입고 완료${r.match_status==='불일치'?' — 금액 불일치!':''}`);navigate('#deal/3b3');}else toast('오류','err');
+}
+
+async function shipCustomer(){const r=await api(`/api/workflow/orders/${F.orderId}/ship`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});if(r.ok){done();navigate('#deal/4');}else toast('오류','err');}
+
+function done(){
+  document.getElementById('d4Info').textContent=`주문 #${F.orderId} 출고 완료`;
+  document.getElementById('d4Pdf1').onclick=()=>window.open(`/api/workflow/orders/${F.orderId}/pdf/거래명세표`);
+  document.getElementById('d4Pdf2').onclick=()=>window.open(`/api/workflow/orders/${F.orderId}/xlsx/견적서`);
+}
+</script>
+</body>
+</html>
