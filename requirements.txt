@@ -7,3 +7,4 @@ xlrd
 supabase
 python-dotenv
 psycopg2-binary
+reportlab
